@@ -11,6 +11,6 @@ import 'rxjs';
 // You can import js, ts, css, sass, ...
 import 'jquery';
 import 'tether';
-import 'bootstrap';
+// import 'bootstrap';
 import 'three';
 import 'three-orbit-controls';
