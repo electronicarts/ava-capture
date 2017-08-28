@@ -175,6 +175,7 @@ def restart_job(request):
         # Update job status
         src_job.status = 'ready'
         src_job.exception = None
+        src_job.image_filename = None
         src_job.progress = None
         if not use_same_machine:
             src_job.node = None
