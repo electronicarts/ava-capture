@@ -36,12 +36,14 @@ class TakeSerializer(serializers.HyperlinkedModelSerializer):
 
     frontal_cam_uid = serializers.ReadOnlyField(source='shot.session.frontal_cam_id')
 
+    shot_name = serializers.ReadOnlyField(source='shot.name')
+
     def get_write_access(self, obj):
         return obj.has_write_access(self.context['request'].user)
 
     class Meta:
         model = Take
-        fields = ('id', 'name', 'sequence', 'capture_time', 'flag', 'cameras', 'total_size', 'write_access', 'related_jobs', 'export_path', 'video_thumb', 'frontal_cam_uid', 'related_staticscans')
+        fields = ('id', 'name', 'shot_name', 'sequence', 'capture_time', 'flag', 'cameras', 'total_size', 'write_access', 'related_jobs', 'export_path', 'video_thumb', 'frontal_cam_uid', 'related_staticscans')
 
 class ShotSerializer(serializers.HyperlinkedModelSerializer):    
 
@@ -113,12 +115,13 @@ class StaticScanAssetSerializer(serializers.ModelSerializer):
 
     take_id = serializers.PrimaryKeyRelatedField(source='take', queryset=Take.objects.all())
     take_name = serializers.ReadOnlyField(source='take.name')
+    shot_name = serializers.ReadOnlyField(source='take.shot.name')
 
     class Meta:
         model = StaticScanAsset
         fields = ('id', 'name', 'image_folder', 'calib_file', 'work_folder', 
             'related_jobs', 'thumbnail_filename', 'project_id',
-            'take_id', 'take_name', 
+            'take_id', 'take_name', 'shot_name',
             'take_mixed_w_time', 'take_pattern_start_time', 'take_pattern_last_time')
 
 class TrackingAssetTakeSerializer(serializers.ModelSerializer):    
@@ -133,13 +136,14 @@ class TrackingAssetSerializer(serializers.ModelSerializer):
 
     take_id = serializers.PrimaryKeyRelatedField(source='take', queryset=Take.objects.all())
     take_name = serializers.ReadOnlyField(source='take.name')
+    shot_name = serializers.ReadOnlyField(source='take.shot.name')
     take_export_path = serializers.ReadOnlyField(source='take.export_path')    
 
     related_jobs = SimpleFarmJobSerializer(many=True, read_only=True, source='ext_jobs')
 
     class Meta:
         model = TrackingAsset
-        fields = ('id', 'calib_file', 'start_time', 'end_time', 'video_thumb', 'take_id', 'take_name', 'take_export_path', 'related_jobs')
+        fields = ('id', 'calib_file', 'start_time', 'end_time', 'video_thumb', 'take_id', 'take_name', 'shot_name', 'take_export_path', 'related_jobs')
 
 class ProjectArchiveSerializer(serializers.ModelSerializer):
 
