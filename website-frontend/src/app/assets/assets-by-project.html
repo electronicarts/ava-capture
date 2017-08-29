@@ -15,14 +15,23 @@
         Launch Jobs: 
         <button class="btn btn-xs btn-primary" (click)="createStaticAssetJob($event, asset.id, 'jobs.thumbnails.GenerateThumbnail', false)">Thumbnail</button>
         <button class="btn btn-xs btn-primary" (click)="createStaticAssetJob($event, asset.id, 'jobs.lightstage.Prepare', true)">RawPrepare</button>
+        <button class="btn btn-xs btn-primary" (click)="createStaticAssetJob($event, asset.id, 'jobs.agisoft.CreateShotCalibration', false)">Shot Calib</button>
         <button class="btn btn-xs btn-primary" (click)="createStaticAssetJob($event, asset.id, 'jobs.lightstage.PrepareNeutral', false)">MeshPrepare</button>
         <button class="btn btn-xs btn-primary" (click)="onCreateJob($event, asset.id, 'jobs.lightstage.Geometry')">Geometry...</button>
         <button class="btn btn-xs btn-primary" (click)="onCreateJob($event, asset.id, 'jobs.lightstage.Textures')">Textures...</button>
+        <button class="btn btn-xs btn-primary" (click)="createStaticAssetJob($event, asset.id, 'jobs.agisoft.CreateSessionCalibration', false)">Session Calib</button>
       </div>
     </div>
     <div style="display: inline-block; vertical-align: top; width: 165px;">
       <img *ngIf="asset.thumbnail_filename" width="160" height="auto" src="/static/thumb/{{asset.thumbnail_filename}}">
     </div>
+
+    <ng-template ngFor let-job [ngForOf]="asset.related_jobs" [ngForTrackBy]="trackById">
+      <div *ngIf="job.status=='success' && job.image_filename" style="display: inline-block; vertical-align: top; width: 165px;">
+        <img width="160" height="auto" src="/static/thumb/{{job.image_filename}}">
+      </div>
+    </ng-template>
+
     <div style="display: inline-block;">
       <div><small>work_folder: {{asset.work_folder}}</small></div>
       <div><small>calib_file: {{asset.calib_file}}</small></div>
