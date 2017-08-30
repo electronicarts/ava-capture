@@ -6,8 +6,7 @@ import {Component, ViewEncapsulation} from '@angular/core';
 import {Router, NavigationEnd} from '@angular/router';
 
 import { ArchiveService } from './capturearchive.service';
-
-import { LoadDataEveryMs } from '../../utils/reloader';
+import { CoreComponent } from '../core/core.component';
 
 @Component({
   selector: 'pipeline',
@@ -46,10 +45,9 @@ export class ReviewSessionPage {
   current_session = 0;
   project_data = [];
   session_data = [];
+  projects_subscription = null;
 
-  loader = new LoadDataEveryMs();
-
-  constructor (private router: Router, private archiveService: ArchiveService) {
+  constructor (private router: Router, private archiveService: ArchiveService, private coreComponent: CoreComponent) {
     this.router = router;
 
     router.events.subscribe((val) => {
@@ -100,14 +98,18 @@ export class ReviewSessionPage {
 
   ngOnInit() {
 
-    this.loader.start(3000, () => { return this.archiveService.getProjects(); }, (data : any) => {
-          this.project_data = data.results;
-        });
+    this.projects_subscription = this.coreComponent.getProjectsStream().subscribe(
+      data => {
+        this.project_data = data;
+      }
+    );
     
   }
 
   ngOnDestroy() {
-    this.loader.release();
+    if (this.projects_subscription) {
+      this.projects_subscription.unsubscribe();
+    }
   }
 
 }

@@ -6,7 +6,7 @@ import {Component} from '@angular/core';
 import {Router, ActivatedRoute, Params, NavigationEnd} from '@angular/router';
 
 import { AssetService } from './assets.service';
-import { LoadDataEveryMs } from '../../utils/reloader';
+import { CoreComponent } from '../core/core.component';
 
 @Component({
   selector: 'assets-projects',
@@ -16,10 +16,10 @@ import { LoadDataEveryMs } from '../../utils/reloader';
 export class AssetsProjectsPage {
 
   router: Router;
-  loader = new LoadDataEveryMs();
   project_data : any = null;
+  projects_subscription = null;
 
-  constructor(private assetService: AssetService, private route: ActivatedRoute, router: Router) {
+  constructor(private assetService: AssetService, private route: ActivatedRoute, router: Router, private coreComponent: CoreComponent) {
     this.router = router;
   }
 
@@ -33,13 +33,17 @@ export class AssetsProjectsPage {
 
   ngOnInit(): void {
 
-    this.loader.start(3000, () => { return this.assetService.getProjects(); }, (data : any) => {
-          this.project_data = data.results;
-        });
+    this.projects_subscription = this.coreComponent.getProjectsStream().subscribe(
+      data => {
+        this.project_data = data;
+      }
+    );
 
   }
 
   ngOnDestroy(): void {
-    this.loader.release();
+    if (this.projects_subscription) {
+      this.projects_subscription.unsubscribe();
+    }
   }
 }

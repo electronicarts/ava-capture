@@ -6,8 +6,7 @@ import {Component, ViewEncapsulation} from '@angular/core';
 import {Router, NavigationEnd} from '@angular/router';
 
 import { AssetService } from './assets.service';
-
-import { LoadDataEveryMs } from '../../utils/reloader';
+import { CoreComponent } from '../core/core.component';
 
 @Component({
   selector: 'pipeline',
@@ -34,11 +33,11 @@ import { LoadDataEveryMs } from '../../utils/reloader';
 export class PipelinePage {
 
   current_project = 0;
+
   project_data = [];
+  projects_subscription = null;
 
-  loader = new LoadDataEveryMs();
-
-  constructor (private router: Router, private assetService: AssetService) {
+  constructor (private router: Router, private assetService: AssetService, private coreComponent: CoreComponent) {
     this.router = router;
 
     router.events.subscribe((val) => {
@@ -64,14 +63,18 @@ export class PipelinePage {
 
   ngOnInit() {
 
-    this.loader.start(3000, () => { return this.assetService.getProjects(); }, (data : any) => {
-          this.project_data = data.results;
-        });
+    this.projects_subscription = this.coreComponent.getProjectsStream().subscribe(
+      data => {
+        this.project_data = data;
+      }
+    );
     
   }
 
   ngOnDestroy() {
-    this.loader.release();
+    if (this.projects_subscription) {
+      this.projects_subscription.unsubscribe();
+    }
   }
 
 }

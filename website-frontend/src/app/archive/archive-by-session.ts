@@ -6,7 +6,7 @@ import {Component} from '@angular/core';
 import {Router, ActivatedRoute, Params, NavigationEnd} from '@angular/router';
 
 import { ArchiveService } from './capturearchive.service';
-import { LoadDataEveryMs } from '../../utils/reloader';
+import { CoreComponent } from '../core/core.component';
 
 var $ = require("jquery");
 
@@ -18,7 +18,7 @@ var $ = require("jquery");
 export class ArchivesPage {
 
   router: Router;
-  loader = new LoadDataEveryMs();
+  projects_subscription = null;
   project_data : any = null;
 
   import_session_project_id = 0;
@@ -27,7 +27,7 @@ export class ArchivesPage {
 
   working : boolean = false;
 
-  constructor(private archiveService: ArchiveService, private route: ActivatedRoute, router: Router) {
+  constructor(private archiveService: ArchiveService, private route: ActivatedRoute, router: Router, private coreComponent: CoreComponent) {
     this.router = router;
   }
 
@@ -73,13 +73,17 @@ export class ArchivesPage {
 
   ngOnInit(): void {
 
-    this.loader.start(3000, () => { return this.archiveService.getProjects(); }, (data : any) => {
-          this.project_data = data.results;
-        });
+    this.projects_subscription = this.coreComponent.getProjectsStream().subscribe(
+      data => {
+        this.project_data = data;
+      }
+    );
 
   }
 
   ngOnDestroy(): void {
-    this.loader.release();
+    if (this.projects_subscription) {
+      this.projects_subscription.unsubscribe();
+    }
   }
 }
