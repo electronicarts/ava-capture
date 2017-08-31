@@ -10,11 +10,13 @@ from jobs.serializers import SimpleFarmJobSerializer
 
 class StaticScanAssetFromTakeSerializer(serializers.ModelSerializer):
 
+    take_id = serializers.PrimaryKeyRelatedField(source='take', read_only=True)
+
     class Meta:
         model = StaticScanAsset
         fields = ('id', 'name', 'image_folder', 'calib_file', 'work_folder', 
-            'thumbnail_filename', 
-            'take_mixed_w_time', 'take_pattern_start_time', 'take_pattern_last_time')
+            'thumbnail_filename', 'take_id',
+            'take_mixed_w_time', 'take_pattern_start_time', 'take_pattern_last_time', 'take_neutral_start_time', 'take_neutral_end_time')
 
 class CameraSerializer(serializers.HyperlinkedModelSerializer):    
 
@@ -122,7 +124,7 @@ class StaticScanAssetSerializer(serializers.ModelSerializer):
         fields = ('id', 'name', 'image_folder', 'calib_file', 'work_folder', 
             'related_jobs', 'thumbnail_filename', 'project_id',
             'take_id', 'take_name', 'shot_name',
-            'take_mixed_w_time', 'take_pattern_start_time', 'take_pattern_last_time')
+            'take_mixed_w_time', 'take_pattern_start_time', 'take_pattern_last_time', 'take_neutral_start_time', 'take_neutral_end_time')
 
 class TrackingAssetTakeSerializer(serializers.ModelSerializer):    
 

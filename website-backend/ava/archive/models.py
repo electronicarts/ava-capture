@@ -119,6 +119,10 @@ class StaticScanAsset(models.Model):
     # Related Take
     # One Take (so one AVI) can contain multiple Static Scans (wich basically represent a frame range)
     take = models.ForeignKey(Take, on_delete=models.SET_NULL, related_name='%(class)s_related', null=True, blank=True)
+
+    # List of relevant frames in the take. (this could be generalized in a different table)
+    take_neutral_start_time = models.FloatField(null=True, blank=True)
+    take_neutral_end_time = models.FloatField(null=True, blank=True)
     take_mixed_w_time = models.FloatField(null=True, blank=True)
     take_pattern_start_time = models.FloatField(null=True, blank=True)
     take_pattern_last_time = models.FloatField(null=True, blank=True)
