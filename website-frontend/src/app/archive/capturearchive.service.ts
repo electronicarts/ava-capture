@@ -119,4 +119,10 @@ export class ArchiveService {
     return this.authHttp.get('/archive/archive_project/' + project_id).map(res => res.json());
   }
 
+  setStaticAssetFrame(asset_id : number, frame_type : string, frame_time: number) {
+    var dataObj = {};
+    dataObj[frame_type] = frame_time;
+    return this.authHttp.patch('/archive/staticscanasset/' + asset_id + '/', dataObj);
+  }
+
 }

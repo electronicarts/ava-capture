@@ -1,3 +1,5 @@
+<set-frame-dialog #setframedialog></set-frame-dialog>
+
 <div *ngIf="!project_data">
   Loading data...
 </div>
@@ -39,28 +41,29 @@
           <div>Ximea Preview</div>
           <videoplaceholder [width]="180" [src]="'/static/thumb/' + take.video_thumb"></videoplaceholder>
         </div>
-        <div style="display: inline-block; vertical-align:top;" *ngIf="take.frontal_camera">
+        <div style="text-align:center; display: inline-block; vertical-align:top;" *ngIf="take.frontal_camera">
           <div>Ximea at <frametime [time]="0" [framerate]="take.frontal_camera.framerate"></frametime></div>
           <rotate_img [angle]="take.frontal_camera.rotation" [width]="160" [src]="'/static/thumb/'+take.frontal_camera.thumbnail_filename"></rotate_img>
         </div>
         <div style="display: inline-block; vertical-align:top;" *ngFor="let scan of take.related_staticscans; trackBy:trackById">
           <div style="display: inline-block;">
             <div>Scan: <b>{{scan.name}}</b> <span *ngIf="scan.take_mixed_w_time">at <frametime [time]="scan.take_mixed_w_time" [framerate]="take.frontal_camera.framerate"></frametime></span></div>
-            <div *ngIf="scan.take_pattern_start_time && scan.take_pattern_last_time">Patterns from <frametime [time]="scan.take_pattern_start_time" [framerate]="take.frontal_camera.framerate"></frametime> to <frametime [time]="scan.take_pattern_last_time" [framerate]="take.frontal_camera.framerate"></frametime></div>
             <img *ngIf="scan.thumbnail_filename" width="160" height="auto" src="/static/thumb/{{scan.thumbnail_filename}}">
           </div>
-          <div style="display: inline-block;" *ngIf="scan.thumbnail_filename && scan.take_pattern_start_time">
-            <div>Pattern Start <frametime [time]="scan.take_pattern_start_time" [framerate]="take.frontal_camera.framerate"></frametime></div>
-            <img width="120" height="auto" src="/static/thumb/{{thumbfile(scan.thumbnail_filename,'take_pattern_start_time')}}">
-          </div>
-          <div style="display: inline-block;" *ngIf="scan.thumbnail_filename && scan.take_mixed_w_time">
-            <div>MIXED_W <frametime [time]="scan.take_mixed_w_time" [framerate]="take.frontal_camera.framerate"></frametime></div>
-            <img width="120" height="auto" src="/static/thumb/{{thumbfile(scan.thumbnail_filename,'take_mixed_w_time')}}">
-          </div>
-          <div style="display: inline-block;" *ngIf="scan.thumbnail_filename && scan.take_pattern_last_time">
-            <div>Pattern End <frametime [time]="scan.take_pattern_last_time" [framerate]="take.frontal_camera.framerate"></frametime></div>
-            <img width="120" height="auto" src="/static/thumb/{{thumbfile(scan.thumbnail_filename,'take_pattern_last_time')}}">
-          </div>
+
+          <ng-template ngFor let-frame [ngForOf]="frame_list">
+            <div style="text-align:center; display: inline-block; vertical-align:top; width:120px; background-color:#404040;">
+              <div>{{frame.name}}</div> 
+              <div>
+                <div>
+                  <frametime *ngIf="scan[frame.key]!=null" [time]="scan[frame.key]" [framerate]="take.frontal_camera.framerate"></frametime>
+                  <a (click)="editFrameNumber(scan, frame.name, frame.key, scan[frame.key]);">Edit</a>
+                </div>
+                <img width="120" height="auto" src="/static/thumb/{{thumbfile(scan.thumbnail_filename,frame.key)}}">
+              </div>
+            </div>
+          </ng-template>
+
         </div>
         </small>
 

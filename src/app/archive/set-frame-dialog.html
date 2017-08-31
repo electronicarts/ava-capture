@@ -1,0 +1,30 @@
+<!-- Modal Dialog to Launch jobs.lightstage.Geometry -->
+<div id="launchJobDialogModal" class="modal-dialog-container">
+        <div class="modal-dialog">
+        <div class="modal-dialog-header">
+          <h1>Set Frame from Sequence for {{frame_name}}</h1>
+        </div>
+        <div class="modal-dialog-content">
+
+          <div *ngIf="take_data" style="text-align:center;">
+
+            <video id="setFrameVideo0" width="90%" preload="auto" (loadeddata)="videoLoaded();">
+              <source src="/static/thumb/{{take_data.video_thumb}}" type="video/mp4">
+            </video>              
+            
+            <div>{{frame_name}} Time: {{frame_time | number:'1.1-1'}}s ({{fps}} fps) Cam: {{take_data.frontal_cam_uid}}</div>
+            <div>
+                <input style="width: 300px;" min="0" [max]="duration_frame" type="range" (change)="onChangeFrame()" [(ngModel)]="frame_frame">
+                <input width="10" min="0" [max]="duration_frame" type="number" (change)="onChangeFrame()" [(ngModel)]="frame_frame">
+            </div>
+                
+          </div>
+
+        </div>
+        <div class="modal-dialog-footer">
+              <button (click)="onSetFrame($event)" type="button" class="btn btn-wide btn-apply">OK</button>
+              <button (click)="onCancel()" type="button" class="btn btn-wide btn-cancel">Cancel</button>
+        </div>
+        </div>
+      </div>
+      

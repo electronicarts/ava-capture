@@ -23,11 +23,13 @@ import { CommonModule }  from '../common.module';
 import { VideoPlaceholder }  from './video-placeholder';
 import { FrameTimeDisplay } from './frametime-display';
 
+import { SetFrameDialog }  from './set-frame-dialog';
+
 @NgModule({
   imports:      [ BrowserModule, FormsModule, RouterModule, JobsListModule, CommonModule ],
   declarations: [ ArchivesPage, ArchiveSessionPage, ArchiveByProjectPage, ArchiveProjectsPage, 
                   CreateTrackingPage, VideoPlaceholder, FrameTimeDisplay, 
-                  ReviewMenuPage, ReviewProjectPage, ReviewSessionPage ],
+                  ReviewMenuPage, ReviewProjectPage, ReviewSessionPage, SetFrameDialog ],
   bootstrap:    [ ArchivesPage ]
 })
 export class ArchivesModule { }

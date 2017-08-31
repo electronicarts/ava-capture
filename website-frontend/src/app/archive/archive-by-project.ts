@@ -8,13 +8,18 @@ import { Router, ActivatedRoute, Params, NavigationEnd } from '@angular/router';
 import { ArchiveService } from './capturearchive.service';
 import { LoadDataEveryMs } from '../../utils/reloader';
 
+import { SetFrameDialog } from './set-frame-dialog';
+
 @Component({
   selector: 'archive-by-project',
   template: require('./archive-by-project.html'),
-  providers: [ArchiveService]
+  providers: [ArchiveService, SetFrameDialog]
 })
 export class ArchiveByProjectPage {
 
+  @ViewChild('setframedialog')
+  public setframedialogComponent : SetFrameDialog;
+    
   router: Router;
   loader = new LoadDataEveryMs();
   project_data : any = null;
@@ -22,6 +27,13 @@ export class ArchiveByProjectPage {
 
   selected_takes : number[] = [];
   all_takes : number[] = [];
+
+  frame_list = [
+    {'name':'NeutralStart', 'key':'take_neutral_start_time'},
+    {'name':'PatternStart', 'key':'take_pattern_start_time'},
+    {'name':'MixedW', 'key':'take_mixed_w_time'},
+    {'name':'PatternEnd', 'key':'take_pattern_last_time'},
+    {'name':'NeutralEnd', 'key':'take_neutral_end_time'}];
   
   constructor(private archiveService: ArchiveService, private route: ActivatedRoute, router: Router) {
     this.router = router;
@@ -33,6 +45,10 @@ export class ArchiveByProjectPage {
 
   trackById(index: number, something : any) {
     return something.id;
+  }
+
+  editFrameNumber(asset : any, frame_name : string, frame_key : string, frame_time : number) {
+    this.setframedialogComponent.show(asset, frame_name, frame_key, frame_time);
   }
 
   toggleBestTake(event, take) {
@@ -104,4 +120,5 @@ export class ArchiveByProjectPage {
   ngOnDestroy(): void {
     this.loader.release();
   }
+
 }
