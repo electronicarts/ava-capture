@@ -4,6 +4,7 @@
 
 import json
 import os
+import logging
 
 from ava.settings import BASE_DIR
 
@@ -23,6 +24,8 @@ from rest_framework.permissions import IsAuthenticated
 
 from jobs.models import FarmNode, FarmJob
 from accounts.models import UserData
+
+g_logger = logging.getLogger('dev')
 
 class ProjectsViewSet(viewsets.ModelViewSet):
     queryset = Project.objects.all().order_by('name')
@@ -221,6 +224,8 @@ def post_scan_asset_thumbnail(request, asset_id="0", asset_type="front"):
             filename = 's%08d_%s_%s.jpg' % (asset_id, asset_type, uuid_node_base36())
         
         filepath = os.path.join(BASE_DIR, 'static', 'thumb', filename)
+
+        g_logger.info('Writing %s' % filepath)    
 
         # Write file to disk
         try:
