@@ -16,10 +16,15 @@ import { LoadDataEveryMs } from '../../utils/reloader';
     <div class="section_select">
         <ul>
             <li>
-                <a [class.selected]="current_page_index==1" [routerLink]=" ['/app/farm/farm-nodes'] "><span class="badge badge-default" [class.badge-warning]="nb_farmnodes_active>0">{{nb_farmnodes_active}}</span> Farm Machines</a>                
+                <a [class.selected]="current_page_index==1" [routerLink]=" ['/app/farm/farm-nodes'] ">
+                <span class="badge badge-default" [class.badge-success]="nb_farmnodes_active>0">{{nb_farmnodes_active}}</span>
+                Farm Machines</a>                
             </li>
             <li>
-                <a [class.selected]="current_page_index==2" [routerLink]=" ['/app/farm/jobs-running'] "><span class="badge badge-default" [class.badge-warning]="nb_running_jobs>0">{{nb_running_jobs}}</span> Farm Jobs</a>
+                <a [class.selected]="current_page_index==2" [routerLink]=" ['/app/farm/jobs-running'] ">
+                <span class="badge badge-default" [class.badge-warning]="nb_queued_jobs>0">{{nb_queued_jobs}}</span> 
+                <span class="badge badge-default" [class.badge-info]="nb_running_jobs>0">{{nb_running_jobs}}</span>
+                Farm Jobs</a>
             </li>
         </ul>
     </div>

@@ -551,10 +551,6 @@ section .content-block {
 	min-width: 20px;
 }
 
-.badge-success {
-	background-color: $notification-color-success;
-}
-
 .badge-default {
 	background-color: $notification-color-default;
 }
@@ -563,16 +559,20 @@ section .content-block {
 	background-color: $notification-color-info;
 }
 
+.badge-success {
+	background-color: $notification-color-success;
+}
+
+.badge-warning {
+	background-color: $notification-color-warning;
+}
+
 .badge-error {
 	background-color: $notification-color-error;	
 }
 
 .badge-danger {
 	background-color: $notification-color-error;	
-}
-
-.badge-warning {
-	background-color: $notification-color-warning;
 }
 
 
