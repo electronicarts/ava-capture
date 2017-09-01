@@ -672,7 +672,7 @@ def get_locations(request):
     # Add extra statistics about the whole system
     result['nb_running_jobs'] = FarmJob.objects.filter(status='running').count()
     result['nb_queued_jobs'] = FarmJob.objects.filter(status='ready').count()
-    result['nb_farmnodes_active'] = FarmNode.objects.filter(status='accepting').count()
+    result['nb_farmnodes_active'] = FarmNode.objects.filter(status='accepting').filter(last_seen__gt=timezone.now() - datetime.timedelta(seconds=90)).count()
 
     return JSONResponse(result)
 
