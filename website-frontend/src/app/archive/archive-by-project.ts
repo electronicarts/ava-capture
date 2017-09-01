@@ -39,8 +39,9 @@ export class ArchiveByProjectPage {
     this.router = router;
   }
 
-  thumbfile(front_path, suffix) {
-    return front_path.replace("_front_", "_"+suffix+"_");
+  thumbfile(front_path : string, framerate : number, frame_time : number) {
+    var frame_index = Math.floor(frame_time * framerate);
+    return front_path.replace("_front_", "_f"+frame_index+"_");
   }
 
   trackById(index: number, something : any) {

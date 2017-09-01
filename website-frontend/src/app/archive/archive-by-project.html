@@ -59,7 +59,7 @@
                   <frametime *ngIf="scan[frame.key]!=null" [time]="scan[frame.key]" [framerate]="take.frontal_camera.framerate"></frametime>
                   <a (click)="editFrameNumber(scan, frame.name, frame.key, scan[frame.key]);">Edit</a>
                 </div>
-                <img width="120" height="auto" src="/static/thumb/{{thumbfile(scan.thumbnail_filename,frame.key)}}">
+                <img width="120" height="auto" src="/static/thumb/{{thumbfile(scan.thumbnail_filename, take.frontal_camera.framerate, scan[frame.key])}}">
               </div>
             </div>
           </ng-template>
