@@ -29,7 +29,7 @@ urlpatterns = [
     url(r'^create_tracking_asset', views.post_create_tracking_asset),
     url(r'^take_video_thumbnail/(?P<take_id>[0-9]+)', views.post_take_video_thumbnail),
     url(r'^tracking_asset_thumbnail/(?P<asset_id>[0-9]+)', views.post_tracking_asset_thumbnail),
-    url(r'^scan_asset_thumbnail/(?P<asset_id>[0-9]+)/(?P<asset_type>[a-z_]+)', views.post_scan_asset_thumbnail),
+    url(r'^scan_asset_thumbnail/(?P<asset_id>[0-9]+)/(?P<asset_type>[0-9a-z_]+)', views.post_scan_asset_thumbnail),
     url(r'^import_session/(?P<project_id>[0-9]+)', views.post_import_session),   
     ]
 

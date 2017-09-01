@@ -215,7 +215,11 @@ def post_scan_asset_thumbnail(request, asset_id="0", asset_type="front"):
         asset_id = int(asset_id)
         asset = StaticScanAsset.objects.get(pk=asset_id)
 
-        filename = 's%08d_%s_%s.jpg' % (asset_id, asset_type, uuid_node_base36())
+        if asset_type.isdigit():
+            filename = 's%08d_f%d_%s.jpg' % (asset_id, int(asset_type), uuid_node_base36())
+        else:
+            filename = 's%08d_%s_%s.jpg' % (asset_id, asset_type, uuid_node_base36())
+        
         filepath = os.path.join(BASE_DIR, 'static', 'thumb', filename)
 
         # Write file to disk
