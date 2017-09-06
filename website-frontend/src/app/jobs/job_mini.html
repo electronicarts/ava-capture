@@ -6,10 +6,22 @@
     [class.badge-default]="job.status=='ready'"
     [class.badge-warning]="job.status=='waiting'"
     >
-    <i class="fa fa-cog"></i> <a style="color: inherit;" [routerLink]=" ['/app/job_details', job.id] ">{{job.id}}</a> {{job.job_class}} {{job.status}}
+    <i class="fa fa-cog"></i> <a style="color: inherit;" [routerLink]="['/app/job_details', job.id] ">{{job.id}}</a>
     <a *ngIf="job.image_filename" (click)="toggleImage()"><i class="fa fa-image"></i></a>
     <div *ngIf="show_image">
         <img style="margin:4px;" width="256" height="auto" src="/static/thumb/{{job.image_filename}}">
     </div>
+    {{job.job_class}} {{job.status}}
+    
+    <div class="dropdown-hover">
+      <button class="dropbtn"><i class="fa fa-bars" style="font-size:0.8em;"></i></button>
+      <div class="dropdown-content">
+          <a [routerLink]="['/app/job_details', job.id] "><i class="fa fa-mail-forward"></i> Details</a>
+          <a (click)="restartJob($event, job.id, false, false);"><i class="fa fa-repeat"></i> Restart</a>
+          <a (click)="restartJob($event, job.id, false, true);"><i class="fa fa-repeat"></i >Restart on same computer</a>
+          <a (click)="deleteJob($event, job.id);"><i class="fa fa-trash-o"></i> Delete</a>
+      </div>
+    </div>              
+
   </span>
 </div>

@@ -409,6 +409,13 @@ ul.notification-area {
 	background-color: $button-color-primary;
 }
 
+.btn-invisible {
+	border-style: none;
+	border-width: 0px;
+	background-color: inherit;
+	cursor: pointer;
+}
+
 /* Button Groups */
 
 .btn-group {
@@ -452,11 +459,14 @@ ul.notification-area {
     content: "\025BC";
 }
 
+/* Click Drop down ( button group)  */
+
 .dropdown-menu {
 	z-index: 1;
 	color: #D0D0D0;
-	width: 300px;
-	background-color: #DD0003;
+	min-width: 100px;
+	background-color: #DD0002;
+	text-align: left;
 
 	position: relative;
 	visibility: hidden;
@@ -479,6 +489,53 @@ ul.notification-area {
 .dropdown-menu a:hover {
 	background-color: #707070;
 }
+
+/* Hover dropdown */
+.dropdown-hover {
+
+	position: relative;
+    display: inline-block;
+
+	.dropbtn {
+		background-color: inherit;
+		color: inherit;
+		border: none;
+		cursor: pointer;
+	}
+
+	.dropdown-content {
+		text-align: left;
+		display: none;
+		position: absolute;
+		background-color: #f9f9f9;
+		min-width: 160px;
+		box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.6);
+		z-index: 1;
+
+		a {
+			color: black;
+			padding: 8px 12px;
+			text-decoration: none;
+			display: block;
+		}
+
+		a:hover {
+			background-color: #f1f1f1;
+		}
+	}
+}
+
+.dropdown-hover:hover {
+
+	.dropdown-content {
+		display: block;
+	}
+
+	.dropbtn {
+		color: white;
+	}
+}
+
 
 /* Section / Widget / Content*/
 

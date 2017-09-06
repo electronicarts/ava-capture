@@ -5,7 +5,7 @@
         <job_status [status]="data.status"></job_status>
 
         <div class="btn-group">
-            <button [disabled]="!(data.status=='failed' || data.status=='success') || !data.write_access" type="button" class="btn btn-primary btn-xs" (click)="restartJob($event, data.id, true, false)">
+            <button [disabled]="!(data.status=='failed' || data.status=='success') || !data.write_access" type="button" class="btn btn-primary btn-xs" (click)="restartJob($event, data.id, false, false)">
               <i class="fa fa-repeat"></i> Restart
             </button>
             <button [disabled]="!(data.status=='failed' || data.status=='success') || !data.write_access" type="button" class="btn btn-primary btn-xs dropdown-toggle" 
@@ -13,10 +13,10 @@
                 <span class="caret"></span>
             </button>
             <div class="dropdown-menu">
-                <a class="dropdown-item" href="#" (click)="restartJob($event, data.id, true, false)">Clone and start (default)</a>
-                <a class="dropdown-item" href="#" (click)="restartJob($event, data.id, true, true)">Clone and start on {{data.node?.machine_name}}</a>
-                <a class="dropdown-item" href="#" (click)="restartJob($event, data.id, false, false)">Restart</a>
+                <a class="dropdown-item" href="#" (click)="restartJob($event, data.id, false, false)">Restart (default)</a>
                 <a class="dropdown-item" href="#" (click)="restartJob($event, data.id, false, true)">Restart on {{data.node?.machine_name}}</a>
+                <a class="dropdown-item" href="#" (click)="restartJob($event, data.id, true, false)">Clone and start</a>
+                <a class="dropdown-item" href="#" (click)="restartJob($event, data.id, true, true)">Clone and start on {{data.node?.machine_name}}</a>
             </div>                
         </div>
 
