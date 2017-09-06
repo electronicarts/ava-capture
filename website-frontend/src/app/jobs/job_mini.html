@@ -17,9 +17,9 @@
       <button class="dropbtn"><i class="fa fa-bars" style="font-size:0.8em;"></i></button>
       <div class="dropdown-content">
           <a [routerLink]="['/app/job_details', job.id] "><i class="fa fa-mail-forward"></i> Details</a>
-          <a (click)="restartJob($event, job.id, false, false);"><i class="fa fa-repeat"></i> Restart</a>
-          <a (click)="restartJob($event, job.id, false, true);"><i class="fa fa-repeat"></i >Restart on same computer</a>
-          <a (click)="deleteJob($event, job.id);"><i class="fa fa-trash-o"></i> Delete</a>
+          <a *ngIf="job.status=='failed' || job.status=='success'" (click)="restartJob($event, job.id, false, false);"><i class="fa fa-repeat"></i> Restart</a>
+          <a *ngIf="job.status=='failed' || job.status=='success'" (click)="restartJob($event, job.id, false, true);"><i class="fa fa-repeat"></i> Restart on same computer</a>
+          <a *ngIf="job.status=='ready' || job.status=='failed' || job.status=='success'" (click)="deleteJob($event, job.id);"><i class="fa fa-trash-o"></i> Delete</a>
       </div>
     </div>              
 
