@@ -65,16 +65,16 @@
               <job_status [status]="farmjob.status"></job_status>
 
               <div class="btn-group" *ngIf="farmjob.status=='failed' || farmjob.status=='success'">
-                <button [disabled]="!farmjob.write_access" type="button" class="btn btn-primary btn-xs" (click)="restartJob($event, farmjob.id, true, false)">Restart</button>
+                <button [disabled]="!farmjob.write_access" type="button" class="btn btn-primary btn-xs" (click)="restartJob($event, farmjob.id, false, false)">Restart</button>
                 <button [disabled]="!farmjob.write_access" type="button" class="btn btn-primary btn-xs dropdown-toggle" 
                   onclick="dropdownToggle(this)" onblur="dropdownHide(this)">
                   <span class="caret"></span>
                 </button>
                 <div class="dropdown-menu">
-                  <a class="dropdown-item" href="#" (click)="restartJob($event, farmjob.id, true, false)">Clone and start (default)</a>
-                  <a class="dropdown-item" href="#" (click)="restartJob($event, farmjob.id, true, true)">Clone and start on {{farmjob.node?.machine_name}}</a>
-                  <a class="dropdown-item" href="#" (click)="restartJob($event, farmjob.id, false, false)">Restart</a>
+                  <a class="dropdown-item" href="#" (click)="restartJob($event, farmjob.id, false, false)">Restart (default)</a>
                   <a class="dropdown-item" href="#" (click)="restartJob($event, farmjob.id, false, true)">Restart on {{farmjob.node?.machine_name}}</a>
+                  <a class="dropdown-item" href="#" (click)="restartJob($event, farmjob.id, true, false)">Clone and start</a>
+                  <a class="dropdown-item" href="#" (click)="restartJob($event, farmjob.id, true, true)">Clone and start on {{farmjob.node?.machine_name}}</a>
                 </div>                
               </div>
             </td>
