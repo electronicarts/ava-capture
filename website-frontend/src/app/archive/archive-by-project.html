@@ -49,8 +49,8 @@
           <rotate_img [angle]="take.frontal_camera.rotation" [width]="160" [src]="'/static/thumb/'+take.frontal_camera.thumbnail_filename"></rotate_img>
         </div>
         <div style="display: inline-block; vertical-align:top;" *ngFor="let scan of take.related_staticscans; trackBy:trackById">
-          <div style="display: inline-block;">
-            <div>Scan: <b>{{scan.name}}</b> <span *ngIf="scan.take_mixed_w_time">at <frametime [time]="scan.take_mixed_w_time" [framerate]="take.frontal_camera.framerate"></frametime></span></div>
+          <div style="display: inline-block; text-align:center;">
+            <div>Scan: <b>{{scan.name}}</b> #{{scan.id}}</div>
             <img *ngIf="scan.thumbnail_filename" width="160" height="auto" src="/static/thumb/{{scan.thumbnail_filename}}">
           </div>
 
