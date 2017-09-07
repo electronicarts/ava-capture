@@ -12,7 +12,7 @@
     </div>
     <div>active: {{node_data.active}}</div>
     <div>system: {{node_data.system}}
-        {{node_data.cpu_brand}} CPU ({{node_data.cpu_cores}} Cores) 
+        {{node_data.cpu_brand}} CPU ({{node_data.cpu_cores}} Threads) 
         <span *ngIf="node_data.gpu_count>0">, {{node_data.gpu_count}} CUDA GPU</span>
     </div>
     <div>code version: {{node_data.code_version}}</div>

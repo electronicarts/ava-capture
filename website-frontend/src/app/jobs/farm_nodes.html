@@ -52,7 +52,7 @@
                 CPU: {{farmnode.cpu_percent | number:'1.1-1'}}%
               </span>
             </div>
-            <div><small>{{farmnode.cpu_brand}} CPU ({{farmnode.cpu_cores}} Cores) <span *ngIf="farmnode.gpu_count>0">, {{farmnode.gpu_count}} CUDA GPU</span></small></div>
+            <div><small>{{farmnode.cpu_brand}} CPU ({{farmnode.cpu_cores}} Threads) <span *ngIf="farmnode.gpu_count>0">, {{farmnode.gpu_count}} CUDA GPU</span></small></div>
           </td>
           <td class="hidden-sm-down">
             <div>{{farmnode.last_seen | timeago}}</div>
