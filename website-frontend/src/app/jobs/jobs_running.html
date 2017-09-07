@@ -51,7 +51,8 @@
             <td>{{farmjob.id}}</td>
             <td style="vertical-align:top;">
               <div class="fw-semi-bold">
-                <a (click)="displayJobDetails(farmjob.id)"><i *ngIf="farmjob.image_filename" class="fa fa-image"></i>  {{farmjob.job_class}}</a>
+                <div style="display:inline-block; padding-right: 5px;"><a (click)="displayJobDetails(farmjob.id)"><i class="fa fa-plus-circle"></i></a></div>
+                <div style="display:inline-block;"><job_label [minwidth]="'500px'" [show_link]="false" [job]="farmjob"></job_label></div>
                 <span class="pull-right"><small>{{farmjob.progress}}</small></span>
               </div>
               <div *ngIf="farmjob.ext_take_name"><small>Take:{{farmjob.ext_take_name}}</small></div>
@@ -63,20 +64,6 @@
             <td>{{farmjob.node?.machine_name}}</td>
             <td class="width-150">
               <job_status [status]="farmjob.status"></job_status>
-
-              <div class="btn-group" *ngIf="farmjob.status=='failed' || farmjob.status=='success'">
-                <button [disabled]="!farmjob.write_access" type="button" class="btn btn-primary btn-xs" (click)="restartJob($event, farmjob.id, false, false)">Restart</button>
-                <button [disabled]="!farmjob.write_access" type="button" class="btn btn-primary btn-xs dropdown-toggle" 
-                  onclick="dropdownToggle(this)" onblur="dropdownHide(this)">
-                  <span class="caret"></span>
-                </button>
-                <div class="dropdown-menu">
-                  <a class="dropdown-item" href="#" (click)="restartJob($event, farmjob.id, false, false)">Restart (default)</a>
-                  <a class="dropdown-item" href="#" (click)="restartJob($event, farmjob.id, false, true)">Restart on {{farmjob.node?.machine_name}}</a>
-                  <a class="dropdown-item" href="#" (click)="restartJob($event, farmjob.id, true, false)">Clone and start</a>
-                  <a class="dropdown-item" href="#" (click)="restartJob($event, farmjob.id, true, true)">Clone and start on {{farmjob.node?.machine_name}}</a>
-                </div>                
-              </div>
             </td>
             <td class="hidden-sm-down">
               <div>{{farmjob.status_changed | timeago}}</div>

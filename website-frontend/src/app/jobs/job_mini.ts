@@ -14,8 +14,10 @@ import { JobsService } from './jobs.service';
 export class JobLabel {
 
   @Input() job : any;
+  @Input() show_link: boolean = true;
+  @Input() minwidth: string = "320px";
 
-  show_image : boolean = false;
+  show_image : boolean = false;  
 
   constructor(private jobsService: JobsService) {
   }  
