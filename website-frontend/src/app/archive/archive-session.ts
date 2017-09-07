@@ -42,37 +42,22 @@ export class ArchiveSessionPage {
       );
   }
 
-  toggleBestTake(event, take) {
+  toggleTakeFlag(event, take, which) {
 
     var flag_set = event.target.checked;
     this.loader.subscribeDataChange(
-      this.archiveService.setTakeFlag(take.id, "best",flag_set ),
+      this.archiveService.setTakeFlag(take.id, which,flag_set ),
       data => {
         // change done, update data
         if (flag_set)
-          take.flag = "best";
+          take.flag = which;
         else
           take.flag = "none";
       },
       err => console.error(err)
     );
   }
-
-  toggleBadTake(event, take) {
-    var flag_set = event.target.checked;
-    this.loader.subscribeDataChange(
-      this.archiveService.setTakeFlag(take.id, "bad",flag_set ),
-      data => {
-        // change done, update data
-        if (flag_set)
-          take.flag = "bad";
-        else
-          take.flag = "none";
-      },
-      err => console.error(err)
-    );
-  }
-
+  
   toggleTakeSelection(take_id : number) {
     var idx = this.selected_takes.indexOf(take_id);
     if (idx > -1) {

@@ -23,11 +23,14 @@
             {{shot.name}} <b>{{take.name}}</b>
             <small>{{take.capture_time | date:'medium'}} <B>{{take.total_size | dataSize}}</B> DB#{{take.id}}</small>
 
-            <label class="btn btn-xs" [class.btn-apply]="take.flag=='best'">
-              <input type="checkbox" autocomplete="off" [checked]="take.flag=='best'" (click)="toggleBestTake($event, take);">Best
+            <label class="btn" [class.btn-apply]="take.flag=='best'">
+              <input type="checkbox" autocomplete="off" [checked]="take.flag=='best'" (click)="toggleTakeFlag($event, take, 'best');"> <i class="fa fa-thumbs-o-up"></i> Best
             </label>
-            <label class="btn btn-xs" [class.btn-destructive]="take.flag=='bad'">
-              <input type="checkbox" autocomplete="off" [checked]="take.flag=='bad'" (click)="toggleBadTake($event, take);">Bad
+            <label class="btn" [class.btn-destructive]="take.flag=='bad'">
+              <input type="checkbox" autocomplete="off" [checked]="take.flag=='bad'" (click)="toggleTakeFlag($event, take, 'bad');"> <i class="fa fa-thumbs-o-down"></i> Bad
+            </label>
+            <label class="btn" [class.btn-primary]="take.flag=='calib'">
+              <input type="checkbox" autocomplete="off" [checked]="take.flag=='calib'" (click)="toggleTakeFlag($event, take, 'calib');"> <i class="fa fa-crosshairs"></i> Calib
             </label>
 
           </div>

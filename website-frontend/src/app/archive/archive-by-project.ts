@@ -52,37 +52,22 @@ export class ArchiveByProjectPage {
     this.setframedialogComponent.show(asset, frame_name, frame_key, frame_time);
   }
 
-  toggleBestTake(event, take) {
-
+  toggleTakeFlag(event, take, which) {
+    
     var flag_set = event.target.checked;
     this.loader.subscribeDataChange(
-      this.archiveService.setTakeFlag(take.id, "best",flag_set ),
+      this.archiveService.setTakeFlag(take.id, which,flag_set ),
       data => {
         // change done, update data
         if (flag_set)
-          take.flag = "best";
+          take.flag = which;
         else
           take.flag = "none";
       },
       err => console.error(err)
     );
   }
-
-  toggleBadTake(event, take) {
-    var flag_set = event.target.checked;
-    this.loader.subscribeDataChange(
-      this.archiveService.setTakeFlag(take.id, "bad",flag_set ),
-      data => {
-        // change done, update data
-        if (flag_set)
-          take.flag = "bad";
-        else
-          take.flag = "none";
-      },
-      err => console.error(err)
-    );
-  }
-
+    
   ngOnInit(): void {
 
     // Get Session Dd from URL

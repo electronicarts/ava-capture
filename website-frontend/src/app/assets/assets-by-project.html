@@ -9,7 +9,11 @@
   <div *ngFor="let asset of project_data.staticscanasset_related; trackBy:trackByAssetId">
     <div style="color:#000; background-color:#F5F5F5; margin-bottom:4px; ; padding:4px;">
       <div style="display: inline-block;">Scan: <b>{{asset.name}}</b> <small>#{{asset.id}}</small> 
-        <span *ngIf="asset.take_id"> Take: <b>{{asset.shot_name}} {{asset.take_name}}</b> <small>#{{asset.take_id}}</small></span>
+        <span *ngIf="asset.take_id"> Take: <b>{{asset.shot_name}} {{asset.take_name}}</b> <small>#{{asset.take_id}}</small>
+          <i *ngIf="asset.take_flag=='best'" class="fa fa-thumbs-o-up"></i>
+          <i *ngIf="asset.take_flag=='bad'" class="fa fa-thumbs-o-down"></i>
+          <i *ngIf="asset.take_flag=='calib'" class="fa fa-crosshairs"></i>
+        </span>
       </div>
       <div class="pull-right">
         Launch Jobs: 
