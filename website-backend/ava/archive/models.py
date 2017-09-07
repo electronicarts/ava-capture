@@ -62,7 +62,7 @@ class Take(models.Model):
     export_path = models.CharField(max_length=250, null=True, blank=True)
     video_thumb = models.CharField(max_length=250, null=True, blank=True)
 
-    FLAG = Choices('none', 'best', 'bad')
+    FLAG = Choices('none', 'best', 'bad', 'calib')
     flag = StatusField(choices_name='FLAG', default='none')
 
     def has_write_access(self, user):

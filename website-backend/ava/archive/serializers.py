@@ -117,13 +117,14 @@ class StaticScanAssetSerializer(serializers.ModelSerializer):
 
     take_id = serializers.PrimaryKeyRelatedField(source='take', queryset=Take.objects.all())
     take_name = serializers.ReadOnlyField(source='take.name')
+    take_flag = serializers.ReadOnlyField(source='take.flag')
     shot_name = serializers.ReadOnlyField(source='take.shot.name')
 
     class Meta:
         model = StaticScanAsset
         fields = ('id', 'name', 'image_folder', 'calib_file', 'work_folder', 
             'related_jobs', 'thumbnail_filename', 'project_id',
-            'take_id', 'take_name', 'shot_name',
+            'take_id', 'take_name', 'take_flag', 'shot_name',
             'take_mixed_w_time', 'take_pattern_start_time', 'take_pattern_last_time', 'take_neutral_start_time', 'take_neutral_end_time')
 
 class TrackingAssetTakeSerializer(serializers.ModelSerializer):    
