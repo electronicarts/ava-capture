@@ -1,0 +1,93 @@
+<nav class="hidden-xs-down bg-faded sidebar">
+
+    <ul class="nav flex-column">
+        <li class="nav-item nav-link">
+            <span class="icon">
+                <i class="fa fa-home"></i>
+            </span>
+            <a [routerLink]=" ['/app/frontpage'] ">Dashboard</a>
+        </li>
+        <li class="nav-item nav-link">
+            <span class="icon">
+                <i class="fa fa-camera"></i>
+            </span>
+            Live Capture
+            <ul class="nav flex-column">
+                <li class="nav-item nav-link nav-sublink" *ngFor="let loc of capture_locations; trackBy:trackByLocId">
+                <a [routerLink]=" ['live-capture', loc.id] ">
+                    {{loc.name}}
+                    <span *ngIf="loc.access" class="badge pull-right" style="margin-top: 0px;"
+                        [class.badge-danger]="loc.active>0"
+                        [class.badge-default]="loc.active<=0">
+                        {{loc.active}}
+                    </span>
+                    <span *ngIf="!loc.access" class="badge badge-warning pull-right" style="margin-top: 0px;">
+                        <i class="fa fa-lock"></i>
+                    </span> 
+                </a>
+                </li>
+            </ul>
+        </li>
+        <li class="nav-item nav-link">
+            <span class="icon">
+                <img style="vertical-align: text-top;" width="auto" height="20 ex" src="{{img_lightstage}}">
+            </span>
+            LightStage
+            <ul class="nav flex-column">
+                <li class="nav-item nav-link nav-sublink"><a [routerLink]=" ['/app/lightstage-control'] ">Control</a></li>
+            </ul>           
+        </li>
+        <li class="nav-item nav-link">
+            <span class="icon">
+                <i class="fa fa-archive"></i>
+            </span>
+            Archive
+            <ul class="nav flex-column">
+                <li class="nav-item nav-link nav-sublink"><a [routerLink]=" ['/app/archive-by-session'] ">By Session</a></li>
+                <li class="nav-item nav-link nav-sublink"><a [routerLink]=" ['/app/archive-projects'] ">By Project</a></li>
+            </ul>           
+        </li>
+        <li class="nav-item nav-link">
+            <span class="icon">
+                <i class="fa fa-cubes"></i>
+            </span>
+            Assets
+            <ul class="nav flex-column">
+                <li class="nav-item nav-link nav-sublink"><a [routerLink]=" ['/app/assets-projects'] ">By Project</a></li>
+            </ul>           
+        </li>
+        <li class="nav-item nav-link">
+            <span class="icon">
+                <i class="fa fa-cogs"></i>
+            </span>
+            Job Farm
+            <ul class="nav flex-column">
+                <li class="nav-item nav-link nav-sublink"><a [routerLink]=" ['/app/farm-nodes'] ">
+                    <span class="icon">
+                        <i class="fa fa-server"></i>
+                    </span>
+                    Farm Nodes
+                </a></li>
+                <li class="nav-item nav-link nav-sublink"><a [routerLink]=" ['/app/jobs-running'] ">                
+                    <span class="icon">
+                        <i class="fa fa-tasks"></i>
+                    </span>Running Jobs
+                    <span *ngIf="nb_running_jobs" class="badge pull-right" style="margin-top: 0px;"
+                        [class.badge-danger]="nb_running_jobs>0"
+                        [class.badge-default]="nb_running_jobs<=0">
+                        {{nb_running_jobs}}
+                    </span>                
+                </a></li>
+            </ul>           
+        </li>
+    </ul>
+
+  <div class="text-center" style="padding: 4px;">
+    <small>
+      <div>Farm Nodes: {{nb_farmnodes_active}}</div>
+      <div>Running Jobs: {{nb_running_jobs}}</div>
+      <div>Queued Jobs: {{nb_queued_jobs}}</div>
+    </small>
+  </div> 
+
+</nav>

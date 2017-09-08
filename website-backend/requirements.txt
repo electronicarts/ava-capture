@@ -1,0 +1,12 @@
+Django==1.10.1
+django-gravatar2==1.4.0
+django-model-utils==2.6
+django-solo==1.1.2
+django-filter==1.0.4
+djangorestframework==3.4.6
+djangorestframework-jwt==1.8.0
+python-ldap==2.4.41
+py-cpuinfo==0.2.3
+PyJWT==1.4.2
+pytz==2016.6.1
+virtualenv==15.1.0

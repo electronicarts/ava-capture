@@ -1,0 +1,14 @@
+<h1 class="page-title">Assets <span class="fw-semi-bold">By Project</span></h1>
+
+<section class="widget" widget>
+  <header>
+    <h4><span class="fw-semi-bold">Project List</span></h4>
+  </header>
+<div class="widget-body">
+  <div *ngIf="project_data">
+    <div *ngFor="let project of project_data; trackBy:trackByProjectId">
+      <a [routerLink]=" ['/app/assets-by-project', project.id] "><b>{{project.name}}</b></a>
+    </div>
+  </div>
+</div>
+</section>

@@ -1,0 +1,35 @@
+    <header>
+		<div class="header">
+			<div class="logo-area">
+				<a href="index.html" class="title"><img class="logo" src="{{seed_white}}" alt="SEED"></a>
+				<a [routerLink]=" ['/app/frontpage'] " class="title">Ava Capture</a>
+			</div>
+
+			<nav class="nav">
+				<ul>
+					<li><a [class.selected]="current_page_index==1" [routerLink]=" ['/app/frontpage'] ">Dashboard</a></li>
+					<li><a [class.selected]="current_page_index==2" [routerLink]=" ['/app/capture'] ">Capture</a></li>
+					<li><a [class.selected]="current_page_index==3" [routerLink]=" ['/app/review'] ">Review</a></li>
+					<li><a [class.selected]="current_page_index==4" [routerLink]=" ['/app/pipeline'] ">Pipeline</a></li>
+					<li><a [class.selected]="current_page_index==5" [routerLink]=" ['/app/farm'] ">Farm</a></li>
+				</ul>			
+
+				<ul class="user_menu">
+					<li><a [routerLink]=" ['/app/userlist'] "><img class="style-gravatar" src="{{user.gravatar}}">{{user.first_name}} {{user.last_name}}</a></li>
+					<li><a [routerLink]=" ['/login'] "><i class="fa fa-sign-out"></i> Logout</a></li>
+				</ul>
+			</nav>
+
+		</div>
+		
+		<!-- Dynamic list of notification messages -->
+		<ul class="notification-area">
+			<ng-template ngFor let-notif [ngForOf]="current_notifications" [ngForTrackBy]="trackById">
+				<li class="{{notif.class}}">
+					<div class="message"><b>Error: </b>{{notif.msg}}</div>
+					<div class="dismiss"><a (click)="dismissNotif(notif.id);" ><i class="fa fa-window-close"></i></a></div>
+				</li>
+			</ng-template>
+		</ul>
+	
+	</header>

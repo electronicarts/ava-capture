@@ -1,0 +1,71 @@
+<div *ngIf="!project_data">
+  Loading data...
+</div>
+<div *ngIf="project_data">
+  <h4><span class="fw-semi-bold"><strong>Capture Archive</strong> for project <strong>{{project_data.name}}</strong></span></h4>
+
+
+  <div *ngFor="let session of project_data.sessions; trackBy:trackById">
+
+    <div style="color: #000; padding:4; background-color:#C5C5C5;">
+      <h4>Session {{session.name}}</h4>
+    </div>
+
+    <div *ngFor="let shot of session.shots; trackBy:trackById">
+      <div *ngFor="let take of shot.takes; trackBy:trackById">
+
+        <h3><span *ngIf="!take.write_access" class="badge badge-danger"><i class="fa fa-lock"></i></span></h3> 
+
+        <div style="color:#000; background-color: #F5F5F5; height: 1.6em; padding: 3px;">
+          <div style="display: inline-block;">
+            {{shot.name}} <b>{{take.name}}</b>
+            <small>{{take.capture_time | date:'medium'}} <B>{{take.total_size | dataSize}}</B> DB#{{take.id}}</small>
+
+            <label class="btn btn-xs" [class.btn-apply]="take.flag=='best'">
+              <input type="checkbox" autocomplete="off" [checked]="take.flag=='best'" (click)="toggleBestTake($event, take);">Best
+            </label>
+            <label class="btn btn-xs" [class.btn-destructive]="take.flag=='bad'">
+              <input type="checkbox" autocomplete="off" [checked]="take.flag=='bad'" (click)="toggleBadTake($event, take);">Bad
+            </label>
+
+          </div>
+        </div>
+        <div *ngIf="take.export_path"><small>Front:{{take.frontal_cam_uid}} Path: {{take.export_path}}</small></div>
+                
+        <job_label_list [jobs]="take.related_jobs"></job_label_list>
+
+        <small>
+        <div style="display: inline-block; vertical-align:top;" *ngIf="take.video_thumb">
+          <div>Ximea Preview</div>
+          <videoplaceholder [width]="180" [src]="'/static/thumb/' + take.video_thumb"></videoplaceholder>
+        </div>
+        <div style="display: inline-block; vertical-align:top;" *ngIf="take.frontal_camera">
+          <div>Ximea at <frametime [time]="0" [framerate]="take.frontal_camera.framerate"></frametime></div>
+          <rotate_img [angle]="take.frontal_camera.rotation" [width]="160" [src]="'/static/thumb/'+take.frontal_camera.thumbnail_filename"></rotate_img>
+        </div>
+        <div style="display: inline-block; vertical-align:top;" *ngFor="let scan of take.related_staticscans; trackBy:trackById">
+          <div style="display: inline-block;">
+            <div>Scan: <b>{{scan.name}}</b> <span *ngIf="scan.take_mixed_w_time">at <frametime [time]="scan.take_mixed_w_time" [framerate]="take.frontal_camera.framerate"></frametime></span></div>
+            <div *ngIf="scan.take_pattern_start_time && scan.take_pattern_last_time">Patterns from <frametime [time]="scan.take_pattern_start_time" [framerate]="take.frontal_camera.framerate"></frametime> to <frametime [time]="scan.take_pattern_last_time" [framerate]="take.frontal_camera.framerate"></frametime></div>
+            <img *ngIf="scan.thumbnail_filename" width="160" height="auto" src="/static/thumb/{{scan.thumbnail_filename}}">
+          </div>
+          <div style="display: inline-block;" *ngIf="scan.thumbnail_filename && scan.take_pattern_start_time">
+            <div>Pattern Start <frametime [time]="scan.take_pattern_start_time" [framerate]="take.frontal_camera.framerate"></frametime></div>
+            <img width="120" height="auto" src="/static/thumb/{{thumbfile(scan.thumbnail_filename,'take_pattern_start_time')}}">
+          </div>
+          <div style="display: inline-block;" *ngIf="scan.thumbnail_filename && scan.take_mixed_w_time">
+            <div>MIXED_W <frametime [time]="scan.take_mixed_w_time" [framerate]="take.frontal_camera.framerate"></frametime></div>
+            <img width="120" height="auto" src="/static/thumb/{{thumbfile(scan.thumbnail_filename,'take_mixed_w_time')}}">
+          </div>
+          <div style="display: inline-block;" *ngIf="scan.thumbnail_filename && scan.take_pattern_last_time">
+            <div>Pattern End <frametime [time]="scan.take_pattern_last_time" [framerate]="take.frontal_camera.framerate"></frametime></div>
+            <img width="120" height="auto" src="/static/thumb/{{thumbfile(scan.thumbnail_filename,'take_pattern_last_time')}}">
+          </div>
+        </div>
+        </small>
+
+      </div>
+    </div>
+  </div>
+
+</div>

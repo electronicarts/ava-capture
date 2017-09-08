@@ -1,0 +1,104 @@
+<h1 class="page-title">List of Farm <span class="fw-semi-bold">Jobs</span></h1>
+
+<section class="content-block" widget>
+  <header>
+    <div>
+      Filter: <input class="form-control form-control-dark" type="text" [(ngModel)]="filter_search"> 
+      Status: <select class="form-control form-control-dark" [(ngModel)]="filter_status">
+        <option value="all">All</option>
+        <option value="ready">Ready</option>
+        <option value="success">Success</option>
+        <option value="failed">Failed</option>
+        <option value="running">Running</option>
+        <option value="waiting">Waiting</option>
+      </select>
+      Limit: <select class="form-control form-control-dark" [(ngModel)]="filter_limit">
+        <option value="10">10</option>
+        <option value="30">30</option>
+        <option value="100">100</option>
+        <option value="1000">1000</option>
+      </select>
+    </div>
+  </header>
+  <div class="content-block-body">
+
+      <table class="table table-striped table-hover">
+        <thead>
+        <tr>
+          <th>
+            Id
+          </th>
+          <th>
+            Class
+          </th>
+          <th class="no-sort hidden-sm-down">
+            Created
+          </th>
+          <th class="no-sort hidden-sm-down">
+            Assigned to
+          </th>
+          <th class="no-sort">
+            Status
+          </th>
+          <th class="no-sort">
+            Status Changed
+          </th>
+        </tr>
+        </thead>
+        <tbody>
+
+          <tr *ngFor="let farmjob of jobs_data; trackBy:trackByJobId" data-toggle="collapse" [attr.data-target]="'#job' + farmjob.id">
+            <td>{{farmjob.id}}</td>
+            <td style="vertical-align:top;">
+              <div class="fw-semi-bold">
+                <a (click)="displayJobDetails(farmjob.id)"><i *ngIf="farmjob.image_filename" class="fa fa-image"></i>  {{farmjob.job_class}}</a>
+                <span class="pull-right"><small>{{farmjob.progress}}</small></span>
+              </div>
+              <div *ngIf="farmjob.ext_take_name"><small>Take:{{farmjob.ext_take_name}}</small></div>
+              <div *ngIf="farmjob.ext_scan_assets_name"><small>Scan:{{farmjob.ext_scan_assets_name}}</small></div>
+              <div *ngIf="farmjob.ext_tracking_assets_name"><small>Track:{{farmjob.ext_tracking_assets_name}}</small></div>
+            </td>
+            <td>
+              <div>{{farmjob.created | timeago}} by {{farmjob.created_by}}</div></td>
+            <td>{{farmjob.node?.machine_name}}</td>
+            <td class="width-150">
+              <job_status [status]="farmjob.status"></job_status>
+
+              <div class="btn-group" *ngIf="farmjob.status=='failed' || farmjob.status=='success'">
+                <button [disabled]="!farmjob.write_access" type="button" class="btn btn-primary btn-xs" (click)="restartJob($event, farmjob.id, true, false)">Restart</button>
+                <button [disabled]="!farmjob.write_access" type="button" class="btn btn-primary btn-xs dropdown-toggle" 
+                  onclick="dropdownToggle(this)" onblur="dropdownHide(this)">
+                  <span class="caret"></span>
+                </button>
+                <div class="dropdown-menu">
+                  <a class="dropdown-item" href="#" (click)="restartJob($event, farmjob.id, true, false)">Clone and start (default)</a>
+                  <a class="dropdown-item" href="#" (click)="restartJob($event, farmjob.id, true, true)">Clone and start on {{farmjob.node?.machine_name}}</a>
+                  <a class="dropdown-item" href="#" (click)="restartJob($event, farmjob.id, false, false)">Restart</a>
+                  <a class="dropdown-item" href="#" (click)="restartJob($event, farmjob.id, false, true)">Restart on {{farmjob.node?.machine_name}}</a>
+                </div>                
+              </div>
+            </td>
+            <td class="hidden-sm-down">
+              <div>{{farmjob.status_changed | timeago}}</div>
+            </td>
+          </tr>
+
+        </tbody>
+      </table>
+
+</div>
+</section>
+
+<div *ngIf="selected_job_id>0" class="bottominfopanel">
+    <div class="header">
+      <h4 style="display: inline-block; padding:3px;">
+          Job Details #{{selected_job_id}}
+      </h4>
+      <div style="float: right !important; ">
+        <button class="btn btn-close" aria-label="Close" (click)="hideJobDetails()">&times;</button>
+      </div>
+    </div>
+    <div class="content">
+      <job_details [jobid]="selected_job_id"></job_details>       
+    </div>
+</div>

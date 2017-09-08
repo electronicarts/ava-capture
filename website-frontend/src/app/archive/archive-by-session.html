@@ -1,0 +1,34 @@
+<!-- Modal Dialog to Import Session from JSON -->
+<div id="importSessionModal" class="modal-dialog-container">
+  <div class="modal-dialog">
+  <div class="modal-dialog-header">
+    <h1>Import Session</h1>
+  </div>
+  <div class="modal-dialog-content">
+    Session JSON File: <input type="file" (change)="fileChangeEvent($event)">
+    <div class="alert alert-danger" *ngIf="import_session_error"><strong>Error!</strong> {{import_session_error}}</div>
+  </div>
+  <div class="modal-dialog-footer">
+    <button [disabled]="working" (click)="onImportSessionFromJSON()" type="button" class="btn btn-wide btn-apply"><i class="fa fa-sign-out"></i> Import</button>
+    <button [disabled]="working" (click)="onCancelImportSessionFromJSON()" type="button" class="btn btn-wide btn-cancel">Cancel</button>
+  </div>
+  </div>
+</div>
+
+<h1 class="page-title">Capture Archive <span class="fw-semi-bold">By Session</span></h1>
+
+<section class="widget" widget>
+  <header>
+    <h4><span class="fw-semi-bold">Project List</span></h4>
+  </header>
+<div class="widget-body">
+  <div *ngIf="project_data">
+    <div *ngFor="let project of project_data; trackBy:trackByProjectId">
+      <b>{{project.name}}</b> <button type="button" class="btn btn-xs btn-default pull-right" (click)="onClickImport(project.id)">Import Session into {{project.name}}</button>
+      <div *ngFor="let session of project.sessions; trackBy:trackBySessionId">
+        {{session.start_time | date : "MMMM d, y"}} <a [routerLink]=" ['/app/archive-session', session.id] ">{{session.name}} ({{session.shot_count}} shots, {{session.take_count}} takes)</a>
+      </div>
+    </div>
+  </div>
+</div>
+</section>

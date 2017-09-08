@@ -1,0 +1,55 @@
+<main>
+
+		<!-- Container for all page contents -->
+		<section class="content">
+			<div class="login-container">
+			<div class="login-container-block">
+				<div class="section-logo">
+					<img src="{{img_seed_logo}}" alt="SEED">
+        </div>
+        
+				<div class="section-form">
+				
+					<div style="font-size: 200%;">
+						Login to Ava
+					</div>
+					<div>
+						Use your EA accout username (if your email address is not @ea.com, please enter your full email address) and your account password.
+					</div>
+					
+					<div class="login-error-banner" *ngIf="login_failed_message">
+					  Login failed! Please try again
+					</div>
+					
+					<form            
+					  #f="ngForm"
+					  (ngSubmit)="onSubmit(f)"
+					  >
+					  <div class="form-group">
+						<input autofocus type="text" class="form-control" id="usrname" name="usrname" placeholder="Username" [(ngModel)]="username" required>
+					  </div>
+					  <div class="form-group">
+						<input class="form-control" id="pswd" name="pswd" type="password" placeholder="Password" [(ngModel)]="password" required>
+					  </div>
+					  <div class="form-group">
+					    <button type="submit" class="btn btn-wide" [disabled]="!f.valid">Login</button>
+					  </div>
+
+					  <div style="margin-top:20px;">
+						  <a href="mailto:edanvoye@ea.com">Trouble with account?</a>
+					  </div>
+
+					</form>
+				
+				</div>
+				
+				<div class="section-foot">
+					<div>2017 © SEED - Electronic Arts</div>
+					<img src="{{img_ea_logo}}">
+				</div>
+			</div>
+				
+			</div>
+		</section>
+    
+</main>

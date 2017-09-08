@@ -1,0 +1,33 @@
+<div style="margin-bottom: 10px;">
+    <div class="row">
+        <button class="btn btn-xs btn-primary" (click)="resetROI()">Reset ROI</button>
+
+        <div class="btn-group">
+            <button [disabled]="roiVisible" type="button" class="btn btn-primary btn-xs" (click)="defineROI()">Define ROI</button>
+            <button [disabled]="roiVisible" type="button" class="btn btn-primary btn-xs dropdown-toggle"
+                onclick="dropdownToggle(this)" onblur="dropdownHide(this)">
+                <span class="caret"></span>
+            </button>
+            <div class="dropdown-menu">
+                <a class="dropdown-item" href="#" (click)="defineROITemplate($event,0)">Crop Center 95%</a>
+                <a class="dropdown-item" href="#" (click)="defineROITemplate($event,1)">Crop Center 90%</a>
+                <a class="dropdown-item" href="#" (click)="defineROITemplate($event,2)">Crop Center 50%</a>
+                <a class="dropdown-item" href="#" (click)="defineROITemplate($event,3)">Crop Center 30%</a>
+                <a class="dropdown-item" href="#" (click)="defineROITemplate($event,4)">Crop Center 15%</a>
+                <a class="dropdown-item" href="#" (click)="defineROITemplate($event,5)">Make Square</a>
+            </div>                
+        </div>
+    </div>
+
+    <span *ngIf="roiVisible">
+        <button class="btn btn-xs btn-primary" (click)="setROI()">Set ROI</button>
+        X:<input type="number" [(ngModel)]="roiOffsetX" />
+        Y:<input type="number" [(ngModel)]="roiOffsetY" />
+        W:<input type="number" [(ngModel)]="roiWidth" />
+        H:<input type="number" [(ngModel)]="roiHeight" />
+    </span>
+
+</div>
+
+<canvas style="background-color: rgb(240, 240, 240); background-color: rgb(240, 240, 240); position: relative; width: 100%; height:600; overflow: hidden;" id="draw_canvas"></canvas>`
+

@@ -1,0 +1,14 @@
+<h1 class="page-title">Lightstage <small>Control</small></h1>
+
+<div class="widget-container">
+
+    Lightstage is 
+    <span class="badge" style="margin-top: 0px;"
+        [class.badge-success]="lightstage_connected"
+        [class.badge-danger]="!lightstage_connected"
+        >
+        <span *ngIf="lightstage_connected">Connected</span>
+        <span *ngIf="!lightstage_connected">Not Connected</span>
+    </span>
+
+</div>

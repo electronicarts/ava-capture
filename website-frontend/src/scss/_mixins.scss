@@ -1,0 +1,39 @@
+/* Copyright (C) 2017 Electronic Arts Inc. All rights reserved. */
+
+@mixin thumb($parent, $size){
+  #{$parent} {
+    width: $size;
+
+    > .fa{
+      line-height: $size;
+    }
+  }
+}
+
+// generic transform
+@mixin transform($transforms) {
+	   -moz-transform: $transforms;
+	     -o-transform: $transforms;
+	    -ms-transform: $transforms;
+	-webkit-transform: $transforms;
+          transform: $transforms;
+}
+// rotate
+@mixin rotate ($deg) {
+  @include transform(rotate(#{$deg}deg));
+}
+
+.rotate-0 { @include rotate(0); }
+.rotate-90 { @include rotate(90); }
+.rotate-180 { @include rotate(180); }
+.rotate-270 { @include rotate(270); }
+
+/* Gradient helper */
+
+@mixin gradient ($c1, $c2) {
+    background: $c1; /* For browsers that do not support gradients */
+    background: -webkit-linear-gradient($c1, $c2); /* For Safari 5.1 to 6.0 */
+    background: -o-linear-gradient($c1, $c2); /* For Opera 11.1 to 12.0 */
+    background: -moz-linear-gradient($c1, $c2); /* For Firefox 3.6 to 15 */
+    background: linear-gradient($c1, $c2); /* Standard syntax */	
+}

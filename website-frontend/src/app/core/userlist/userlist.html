@@ -1,0 +1,40 @@
+
+<h1 class="page-title">User List</h1>
+
+<section class="widget" widget>
+  <header>
+    <h4>List of <span class="fw-semi-bold">Users</span></h4>
+  </header>
+  <div class="widget-body">
+    <div class="mt">
+      <table class="table table-striped table-hover" style="border-collapse:collapse;">
+        <thead>
+        <tr>
+          <th>
+            Name
+          </th>
+          <th>
+            Last Visit
+          </th>
+        </tr>
+        </thead>
+        <tbody>
+
+          <tr *ngFor="let user of users; trackBy:trackById">
+            <td>
+                <span class="thumb-sm pull-left mr">
+                    <img class="style-gravatar" src="{{user.gravatar}}" alt="...">
+                </span>
+                {{user.first_name}} {{user.last_name}}
+            </td>
+            <td>
+                {{user.lastMessage}}
+            </td>
+          </tr>
+
+        </tbody>
+      </table>
+    </div>
+
+</div>
+</section>

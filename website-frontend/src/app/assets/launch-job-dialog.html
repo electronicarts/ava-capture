@@ -1,0 +1,36 @@
+<!-- Modal Dialog to Launch jobs.lightstage.Geometry -->
+<div id="launchJobDialogModal" class="modal-dialog-container">
+  <div class="modal-dialog">
+  <div class="modal-dialog-header">
+    <h1>Launch {{jobclass}}</h1>
+  </div>
+  <div class="modal-dialog-content">
+        <div class="form-group">
+          {{jobclass}} Options
+        </div>
+
+        <div class="form-group" *ngIf="params_to_show | contains : 'resolution'">
+          Resolution: <select name="resolution" [(ngModel)]="params.resolution">
+            <option value="512">512</option>
+            <option value="1024">1024</option>
+            <option value="2048">2048</option>
+            <option value="4096">4096</option>
+            <option value="6000">6000</option>
+            <option value="8192">8192</option>
+          </select>
+        </div>
+
+        <div class="form-group" *ngIf="params_to_show | contains : 'meshfile'">
+          Mesh: <input type="text" [(ngModel)]="params.meshfile">
+        </div>
+
+        <div class="form-group" *ngIf="params_to_show | contains : 'color_matrix'">
+          Color Matrix File: <input type="text" [(ngModel)]="params.color_matrix">
+        </div>
+  </div>
+  <div class="modal-dialog-footer">
+        <button (click)="onLaunchJob($event)" type="button" class="btn btn-wide btn-apply">Launch</button>
+        <button (click)="onCancelLaunchJob()" type="button" class="btn btn-wide btn-cancel">Cancel</button>
+  </div>
+  </div>
+</div>

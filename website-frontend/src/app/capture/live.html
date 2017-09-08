@@ -1,0 +1,453 @@
+<!-- Modal Dialog to Restart Nodes takes -->
+<div id="restartNodeModal" class="modal-dialog-container">
+  <div class="modal-dialog">
+  <div class="modal-dialog-header">
+    <h1>Restart Node {{node_to_close_name}}</h1>
+  </div>
+  <div class="modal-dialog-content">
+        <p>Are you sure you want to restart this node?</p>
+  </div>
+  <div class="modal-dialog-footer">
+        <button (click)="onCloseNode()" type="button" class="btn btn-wide btn-warning">Restart</button>
+        <button (click)="onCancelCloseNode()" type="button" class="btn btn-wide btn-cancel">Cancel</button>
+  </div>
+  </div>
+</div>
+
+<!-- Modal Dialog to Create a new session -->
+<div id="createSessionModal" class="modal-dialog-container">
+  <div class="modal-dialog">
+  <div class="modal-dialog-header">
+    <h1>Create New Capture Session</h1>
+  </div>
+  <div class="modal-dialog-content">
+        <div class="form-group">
+          <label class="form-control-label" for="textareaID">New Session Name:</label>
+          <input class="form-control" id="textareaID" type="text" size="50" [(ngModel)]="create_session_name">
+        </div>        
+        <div class="alert alert-danger" *ngIf="create_session_error"><strong>Error!</strong> {{create_session_error}}</div>
+  </div>
+  <div class="modal-dialog-footer">
+        <button (click)="onCreateNewSession()" type="button" class="btn btn-wide btn-apply">Create</button>
+        <button (click)="onCancelCreateNewSession()" type="button" class="btn btn-wide btn-cancel">Cancel</button>
+  </div>
+  </div>
+</div>
+
+
+<div class="widget-container">
+
+  <div *ngIf="load_failed">
+    <span class="badge badge-error badge-wide">
+        <h3><i class="fa fa-meh-o"></i> Error loading page content</h3>
+    </span>
+  </div>
+  <div *ngIf="!read_access && !load_failed">
+    <span class="badge badge-warning badge-wide">
+        <h3><i class="fa fa-lock"></i> You are not authorized to access this page</h3>
+    </span>
+  </div>
+
+<div *ngIf="!load_failed">
+
+<section class="content-block" *ngIf="read_access">
+  <div class="row">
+    <div class="split-columns">
+      <div>Project: <b>{{project_name}}</b> (Change)</div>
+
+      <div>Session: <b>{{session_name}}</b>
+      <button class="btn btn-xs btn-primary" [disabled]="!write_access" (click)="onShowCreateSessionDialog()">New</button></div>
+
+    </div>
+    <div class="split-columns">
+      <div><session-name #shot
+        name="Shot"
+        [value]="shot_name"
+        [disabled]="!write_access || !shot_id || next_take<=1"
+        (onNew)="onNextCaptureShot()">
+      </session-name></div>
+      <div>Take: <span class="badge badge-xs badge-default">{{next_take}}</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="content-block" *ngIf="read_access">
+  <div class="row">
+
+    <div *ngIf="session_id<=0"><h3><span class="badge badge-error"><strong>Error!</strong> Create session before recording</span></h3></div>
+
+    <div>
+      <button class="btn btn-apply btn-large btn-fill-phone" (click)="onSinglePhotoRecording()" [disabled]="session_id<=0 || recording_single || recording || !write_access">
+        <i class="fa fa-camera" [class.fa-spin]="recording_single"></i>
+        <span class="hidden-sm-down">Single Image</span></button>
+      <button class="btn btn-destructive btn-large btn-fill-phone" (click)="onStartRecording()" [disabled]="session_id<=0 || recording_single || recording || !write_access"><i class="fa fa-video-camera"></i> <span class="hidden-sm-down">Start Recording</span></button>
+      <button class="btn btn-warning btn-large btn-fill-phone" (click)="onStopRecording()" [disabled]="recording_single || !recording || !write_access"><i class="fa fa-remove"></i> <span class="hidden-sm-down">Stop Recording</span></button>
+
+      <div [hidden]="!recording">
+        <button class="btn btn-default" style="font-size: 200%; width:100%;"><i style="color:#ff0000;" class="fa fa-circle"></i> <timer-display></timer-display></button>
+      </div>
+
+    </div>
+
+    <div class="split-columns">
+      <small><input type="checkbox" [disabled]="recording_single || recording || !write_access" [(ngModel)]="show_focus_peak" (ngModelChange)="onChangeLocationOption($event)" /> Focus Peak</small>
+      <small><input type="checkbox" [disabled]="recording_single || recording || !write_access" [(ngModel)]="show_overexposed" (ngModelChange)="onChangeLocationOption($event)" /> Overexposed</small>
+      <small><input type="checkbox" [disabled]="recording_single || recording || !write_access" [(ngModel)]="show_histogram" (ngModelChange)="onChangeLocationOption($event)" /> Histogram</small>
+    </div>
+    <div class="split-columns">
+      <small>
+        <select class="form-control form-control-dark" [(ngModel)]="thumbnail_preview_fps">
+          <option [value]="0.5">Preview @ 0.5 fps</option>
+          <option [value]="1">Preview @ 1 fps</option>
+          <option [value]="5">Preview @ 5 fps</option>
+          <option [value]="15">Preview @ 15 fps</option>
+        </select>
+        <div>AVI:
+        <select class="form-control form-control-dark" [(ngModel)]="bitdepth_avi" (ngModelChange)="onChangeLocationOption($event)">
+          <option [value]="8">8</option>
+          <option [value]="10">10</option>
+          <option [value]="12">12</option>
+        </select></div>
+        <div>Single:
+        <select class="form-control form-control-dark" [(ngModel)]="bitdepth_single" (ngModelChange)="onChangeLocationOption($event)">
+          <option [value]="8">8</option>
+          <option [value]="10">10</option>
+          <option [value]="12">12</option>
+        </select></div>
+      </small>
+    </div>
+
+  </div>
+</section>
+
+<section class="content-block" *ngIf="read_access">
+  <div style="margin-bottom:3px;">
+    
+    <div style="white-space: nowrap; display: inline-block;">
+      <i class="fa fa-plug"></i> Sync: 
+      <select class="form-control form-control-dark" [(ngModel)]="hardware_sync_frequency" (ngModelChange)="onChangeLocationSyncOption($event)" [disabled]="recording_single || recording || !write_access">
+        <option *ngFor="let x of available_freqs" [value]="x" [selected]="hardware_sync_frequency == x">{{x}}</option>
+      </select> Hz
+    </div>
+      
+    <div style="white-space: nowrap; display: inline-block;">
+      Pulse: <input class="form-control form-control-dark" [(ngModel)]="pulse_duration" type="number" (ngModelChange)="onChangeLocationSyncOption($event)" min="10" max="65000" [disabled]="recording_single || recording || !write_access"> us
+    </div>
+
+    <div style="white-space: nowrap; display: inline-block;">    
+      Mode:
+      <select class="form-control form-control-dark" [(ngModel)]="external_sync" (ngModelChange)="onChangeLocationSyncOption($event)">
+        <option [value]="0">Master</option>
+        <option [value]="1">Slave</option>
+      </select>
+    </div>
+    
+    <h4 *ngIf="syncs_found<1" style="display:inline;"><span class="badge badge-warning"><strong>Warning!</strong> No hardware sync found</span></h4>
+  </div>
+</section>
+
+<section class="content-block" *ngIf="write_access">
+  <div class="container">
+  <div class="row">
+    <div class="split-columns">
+      <select class="form-control form-control-dark" [(ngModel)]="batch_target" [disabled]="camera_count<=0 || recording_single || recording || !write_access">
+        <option value="all">All Cameras</option>
+        <option *ngFor="let model of camera_models" [value]="model">All {{model}}</option>
+      </select>
+    </div>
+    <div class="split-columns">
+      <div style="white-space: nowrap; display: inline-block;">Sync 
+       <button class="btn" (click)="batch_syncEnable(1);" [disabled]="camera_count<=0 || recording_single || recording || !write_access">Enable</button> 
+       <button class="btn" (click)="batch_syncEnable(0);" [disabled]="camera_count<=0 || recording_single || recording || !write_access">Disable</button>
+      </div>
+    </div>
+    <div class="split-columns">
+      <cam-param
+        name="Exposure"
+        unit="us"
+        min="10"
+        max="6000"
+        [disabled]="camera_count<=0 || recording_single || recording || !write_access"
+        [editAlwaysVisible]=1
+        [value]="0"
+        (onChanged)="batch_setExposure($event)">
+      </cam-param>
+    </div>
+    <div class="split-columns">
+      <cam-param
+        name="Gain"
+        unit=""
+        min="0"
+        max="10.0"
+        [disabled]="camera_count<=0 || recording_single || recording || !write_access"
+        [editAlwaysVisible]=1
+        [value]="0"
+        (onChanged)="batch_setGain($event)">
+      </cam-param>
+    </div>
+  </div>
+  </div>
+</section>
+
+<summary-selector></summary-selector>
+<zoomview-selector></zoomview-selector>
+
+<section class="content-block" *ngIf="read_access && show_camera_list">
+  <div *ngFor="let capturenode of capturenodes; trackBy:trackByNodeId"> 
+    <div *ngFor="let camera of capturenode.camera_details; trackBy:trackByCameraId">
+      <div>{{capturenode.machine_name}} {{camera.model}} {{camera.unique_id}} {{camera.version}} 
+        {{camera.width}}x{{camera.height}} {{camera.bpp}}bpp
+        {{camera.effective_fps | number:'1.1-1'}}fps Sync:{{camera.using_hardware_sync}}</div>
+    </div>
+  </div>
+</section>
+
+<button class="btn btn-default btn-xs" (click)="toggle_view_cameras_per_node();">Toggle Node View</button>
+<button class="btn btn-default btn-xs" (click)="show_camera_list=!show_camera_list;">Toggle Camera List</button>
+
+<div *ngIf="read_access">
+
+  <div *ngIf="!capturenodes || capturenodes.length==0"> There are no Recording Nodes online.</div>
+
+  <div *ngIf="camera_view_mode==0">
+  <div class="card" style="margin-top: 3px;margin-bottom: 3px;" *ngFor="let capturenode of capturenodes; trackBy:trackByNodeId">
+    <div class="card-header">
+      <h4 style="display:inline;">
+        <i *ngIf="capturenode.os" class="fa fa-{{capturenode.os}}"></i>
+        {{capturenode.machine_name}} <small>({{capturenode.ip_address}}) v{{capturenode.code_version}}</small></h4>
+      <button class="btn btn-xs"  (click)="onDisplayCloseNodeModal(capturenode.id, capturenode.machine_name)">Restart</button>
+      <span class="badge badge-info" *ngIf="capturenode.sync_found && capturenode.active"><i class="fa fa-plug"></i> Sync Found</span>
+      <div *ngIf="capturenode.drive_info">
+        <div *ngFor="let drive of capturenode.drive_info; trackBy:trackByDriveRoot"
+          style="display:inline-block;">
+          <span class="badge badge-default badge-sm" [class.badge-success]="drive.capacity>80*1024" [class.badge-warning]="drive.capacity<16*1024" [class.badge-danger]="drive.capacity<4*1024">
+            <i class="fa fa-hdd-o"></i> {{drive.root}} <b>{{drive.available/1024 | number:'1.0-0'}}</b> GB Free ({{drive.bandwidth}} MB/s)
+          </span>
+        </div>
+      </div>
+    </div>
+    <div class="card-block">
+      
+      <div *ngIf="!capturenode.camera_details || capturenode.camera_details.length==0"> There are no cameras online on this node.</div>
+
+      <div *ngFor="let camera of capturenode.camera_details; trackBy:trackByCameraId" 
+        style="padding: 5px; vertical-align: top; display:inline-block;">
+        
+        <div title="{{camera.model}} {{camera.unique_id}} {{camera.version}}">{{camera.model}}</div>
+        <div class="fw-semi-bold"><a (click)="enableZoonView(camera)">{{camera.unique_id}}</a></div>
+        <div *ngIf="!camera.id">Loading</div>
+        <div *ngIf="camera.id">
+
+          <div style="position: relative;">
+            <div class="camera_image" [hidden]="!camera.jpeg_thumbnail">    
+              <rotate_img (click)="enableZoonView(camera)" [angle]="camera.rotation" [width]="220" [src]="'data:image/jpg;base64,'+camera.jpeg_thumbnail"></rotate_img>
+            </div>
+          </div>
+          <div *ngIf="camera.recording">
+            <div>
+              <progress class="progress progress-sm progress-success progress-striped" 
+                [class.progress-warning]="camera.encoding_buffers_used>30"
+                [class.progress-danger]="camera.encoding_buffers_used>70"
+                [value]="camera.encoding_buffers_used"
+                max="100" style="height: 12px; width: 100%; margin-bottom: 0.2rem; margin-top: 0.2rem;"></progress>
+            </div>
+            <div>
+              <progress class="progress progress-sm progress-success progress-striped" 
+                [class.progress-warning]="camera.writing_buffers_used>30"
+                [class.progress-danger]="camera.writing_buffers_used>70"
+                [value]="camera.writing_buffers_used"
+                max="100" style="height: 12px; width: 100%; margin-bottom: 0.2rem; margin-top: 0.2rem;"></progress>
+            </div>
+          </div>
+          <div>          
+            <div>
+              <button (click)="onCameraRotateRight(camera)" class="btn btn-xs"><i class="fa fa-rotate-right"></i></button>
+              <button (click)="onToggleCapturing(camera.id)" class="btn btn-xs" [class.btn-apply]="camera.capturing">Capturing</button>
+              <span class="badge badge-xs badge-default" [class.badge-danger]="camera.recording">Recording</span>
+            </div>
+            <div>
+              <span class="badge badge-xs badge-info">{{camera.framerate | number:'1.1-1'}} FPS</span>
+              <span class="badge badge-xs badge-info" [class.badge-danger]="camera.effective_fps<=0" [class.badge-warning]="!within_percent(camera.effective_fps, camera.framerate, 2)">{{camera.effective_fps | number:'1.1-1'}} FPS</span>
+              <button (click)="onToggleUsingSync(camera.id)" class="btn btn-xs" [class.btn-primary]="camera.using_hardware_sync">Using Sync</button>
+            </div>
+            <div>
+              <span class="badge badge-xs badge-info">{{camera.width}}x{{camera.height}} {{camera.bpp}}bpp</span>
+              <span class="badge badge-xs badge-info">{{camera.params.sensor_board_temp?.value | number:'1.1-1'}}&deg;C</span>
+            </div>
+            <div *ngIf="camera.params.exposure">
+              <cam-param
+                name="Exposure"
+                unit="us"
+                min="10"
+                max="60000"
+                [disabled]="recording_single || recording || !write_access"
+                [value]="camera.params.exposure.value"
+                (onChanged)="onChangeCameraParameter($event, 'exposure', camera.id)">
+              </cam-param>
+            </div>
+            <div *ngIf="camera.params.gain">
+              <cam-param
+                name="Gain"
+                unit=""
+                min="0"
+                max="10.0"
+                [disabled]="recording_single || recording || !write_access"
+                [value]="camera.params.gain.value"
+                (onChanged)="onChangeCameraParameter($event, 'gain', camera.id)">
+              </cam-param>
+            </div>
+            <div *ngIf="camera.params.lens_aperture_value">
+              <cam-param
+                name="Aperture"
+                unit=""
+                min="2.8"
+                max="16.0"
+                [disabled]="recording_single || recording || !write_access"
+                [value]="camera.params.lens_aperture_value.value"
+                (onChanged)="onChangeCameraParameter($event, 'lens_aperture_value', camera.id)">
+              </cam-param>
+            </div>
+          </div>
+          </div>
+      </div>
+      
+    </div>
+  </div>
+  </div>
+
+
+  <div *ngIf="camera_view_mode==1">
+  <div class="card" style="margin-top: 3px;margin-bottom: 3px;">
+    <div class="card-block">
+
+      <div *ngFor="let camera of capturecameras; trackBy:trackByCameraId" 
+        style="padding: 5px; vertical-align: top; display:inline-block;">
+        
+        <div style="font-size: 12px;" title="{{camera.model}} {{camera.unique_id}} {{camera.version}}">{{camera.model}}</div>
+        <div style="font-size: 10px;"><a (click)="enableZoonView(camera)">{{camera.unique_id}}</a> <span class="pull-right">{{camera.machine_name}}</span></div>
+        <div *ngIf="!camera.id">Loading</div>
+        <div *ngIf="camera.id">
+
+          <div style="position: relative;">
+            <div class="camera_image" [hidden]="!camera.jpeg_thumbnail">
+              <rotate_img (click)="enableZoonView(camera)" [angle]="camera.rotation" [width]="220" [src]="'data:image/jpg;base64,'+camera.jpeg_thumbnail"></rotate_img>
+            </div>
+          </div>
+          <div *ngIf="camera.recording">
+            <div>
+              <progress class="progress progress-sm progress-success progress-striped" 
+                [class.progress-warning]="camera.encoding_buffers_used>30"
+                [class.progress-danger]="camera.encoding_buffers_used>70"
+                [value]="camera.encoding_buffers_used"
+                max="100" style="height: 12px; width: 100%; margin-bottom: 0.2rem; margin-top: 0.2rem;"></progress>
+            </div>
+            <div>
+              <progress class="progress progress-sm progress-success progress-striped" 
+                [class.progress-warning]="camera.writing_buffers_used>30"
+                [class.progress-danger]="camera.writing_buffers_used>70"
+                [value]="camera.writing_buffers_used"
+                max="100" style="height: 12px; width: 100%; margin-bottom: 0.2rem; margin-top: 0.2rem;"></progress>
+            </div>
+          </div>
+          <div>
+            <div>
+              <button (click)="onCameraRotateRight(camera)" class="btn btn-xs"><i class="fa fa-rotate-right"></i></button>
+              <button (click)="onToggleCapturing(camera.id)" class="btn btn-xs" [class.btn-apply]="camera.capturing">Capturing</button>
+              <span class="badge badge-xs badge-default" [class.badge-danger]="camera.recording">Recording</span>              
+            </div>
+            <div>
+              <span class="badge badge-xs badge-info">{{camera.framerate | number:'1.1-1'}} FPS</span>
+              <span class="badge badge-xs badge-info" [class.badge-danger]="camera.effective_fps<=0" [class.badge-warning]="!within_percent(camera.effective_fps, camera.framerate, 2)">{{camera.effective_fps | number:'1.1-1'}} FPS</span>
+              <button (click)="onToggleUsingSync(camera.id)" class="btn btn-xs" [class.btn-primary]="camera.using_hardware_sync">Using Sync</button>
+            </div>
+            <div>
+              <span class="badge badge-xs badge-info">{{camera.width}}x{{camera.height}} {{camera.bpp}}bpp</span>
+            </div>
+            <div style="font-size: 12px;" *ngIf="camera.params.exposure">
+              <cam-param
+                name="Exposure"
+                unit="us"
+                min="10"
+                max="60000"
+                [disabled]="recording_single || recording || !write_access"
+                [value]="camera.params.exposure.value"
+                (onChanged)="onChangeCameraParameter($event, 'exposure', camera.id)">
+              </cam-param>
+            </div>
+            <div style="font-size: 12px;" *ngIf="camera.params.gain">
+              <cam-param
+                name="Gain"
+                unit=""
+                min="0"
+                max="10.0"
+                [disabled]="recording_single || recording || !write_access"
+                [value]="camera.params.gain.value"
+                (onChanged)="onChangeCameraParameter($event, 'gain', camera.id)">
+              </cam-param>
+            </div>
+            <div style="font-size: 12px;" *ngIf="camera.params.lens_aperture_value">
+              <cam-param
+                name="Aperture"
+                unit=""
+                min="2.8"
+                max="16.0"
+                [disabled]="recording_single || recording || !write_access"
+                [value]="camera.params.lens_aperture_value.value"
+                (onChanged)="onChangeCameraParameter($event, 'lens_aperture_value', camera.id)">
+              </cam-param>
+            </div>
+          </div>
+          </div>
+
+      </div>
+
+    </div>
+  </div>
+  </div>
+
+
+
+  <div *ngIf="camera_view_mode==2">
+  <div class="card" style="margin-top: 3px;margin-bottom: 3px;">
+    <div class="card-block" style="padding:1px;">
+
+      <div *ngFor="let camera of capturecameras; trackBy:trackByCameraId" 
+        style="padding: 0px; vertical-align: top; display:inline-block;">
+        
+        <div>
+          <small><a (click)="enableZoonView(camera)">{{camera.unique_id}}</a></small>
+          <span class="badge badge-xs badge-default" [class.badge-danger]="camera.recording">Rec</span>
+          <span class="badge badge-xs badge-info" [class.badge-danger]="camera.effective_fps<=0" [class.badge-warning]="!within_percent(camera.effective_fps, camera.framerate, 2)">{{camera.effective_fps | number:'1.1-1'}} FPS</span>
+        </div>
+
+          <div style="position: relative;">
+            <div class="camera_image" [hidden]="!camera.jpeg_thumbnail">
+              <rotate_img (click)="enableZoonView(camera)" [angle]="camera.rotation" [width]="220" [src]="'data:image/jpg;base64,'+camera.jpeg_thumbnail"></rotate_img>
+            </div>
+          </div>
+          <div *ngIf="camera.recording">
+            <div>
+              <progress class="progress progress-sm progress-success progress-striped" 
+                [class.progress-warning]="camera.encoding_buffers_used>30"
+                [class.progress-danger]="camera.encoding_buffers_used>70"
+                [value]="camera.encoding_buffers_used"
+                max="100" style="height: 12px; width: 100%; margin-bottom: 0.2rem; margin-top: 0.2rem;"></progress>
+            </div>
+            <div>
+              <progress class="progress progress-sm progress-success progress-striped" 
+                [class.progress-warning]="camera.writing_buffers_used>30"
+                [class.progress-danger]="camera.writing_buffers_used>70"
+                [value]="camera.writing_buffers_used"
+                max="100" style="height: 12px; width: 100%; margin-bottom: 0.2rem; margin-top: 0.2rem;"></progress>
+            </div>
+          </div>
+      </div>
+
+    </div>
+  </div>
+  </div>
+
+</div>
+</div>
+
+</div>

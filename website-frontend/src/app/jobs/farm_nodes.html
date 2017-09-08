@@ -1,0 +1,97 @@
+<h1 class="page-title">Computing Farm <span class="fw-semi-bold">Nodes</span></h1>
+
+<section class="widget" widget>
+  <header>
+    <h4 style="display:inline-block;">List of <span class="fw-semi-bold">Farm Nodes</span></h4>
+      <div style="display:block; float:right;">
+          <div style="display:inline-block; white-space: nowrap; padding: 4px;">
+            <i class="fa fa-search" style="padding-right:8px;"></i><input class="form-control form-control-dark" id="table-search-input" [(ngModel)]="searchText" type="text" placeholder="Search by Name">
+          </div>
+          <div style="display:inline-block;">
+            <button type="button" class="btn btn-primary btn-xs" (click)="reloadClient($event, -1)">Restart All</button>
+          </div>
+      </div>
+  </header>
+  <div class="widget-body">
+
+    <div>
+      <table class="table table-striped table-hover">
+        <thead>
+        <tr>
+          <th>
+            Id
+          </th>
+          <th>
+            Name
+          </th>
+          <th class="hidden-sm-down">
+            Last Seen
+          </th>
+          <th class="hidden-sm-down">
+            Jobs
+          </th>
+          <th class="no-sort">
+            Status
+          </th>
+        </tr>
+        </thead>
+        <tbody>
+
+        <ng-container *ngFor="let group of nodes_by_group | mapToIterable">        
+
+        <tr><td colspan="5" style="background-color:#313131; color:white;">{{group.key}}</td></tr>
+
+        <tr *ngFor="let farmnode of group.val | SearchPipe : searchText; trackBy:trackByNodeId">
+          <td>{{farmnode.id}}</td>
+          <td>
+            <div><b><a (click)="displayNodeDetails(farmnode.id)">{{farmnode.machine_name}}</a></b> ({{farmnode.system}})
+              <span *ngIf="farmnode.status=='accepting'" class="badge badge-default"
+                [class.badge-info]="farmnode.cpu_percent>10"
+                [class.badge-warning]="farmnode.cpu_percent>70"
+                [class.badge-danger]="farmnode.cpu_percent>90">
+                CPU: {{farmnode.cpu_percent | number:'1.1-1'}}%
+              </span>
+            </div>
+            <div><small>{{farmnode.cpu_brand}} CPU ({{farmnode.cpu_cores}} Cores) <span *ngIf="farmnode.gpu_count>0">, {{farmnode.gpu_count}} CUDA GPU</span></small></div>
+          </td>
+          <td class="hidden-sm-down">
+            <div>{{farmnode.last_seen | timeago}}</div>
+            <div>Version:{{farmnode.code_version}}</div>
+          </td>
+          <td class="hidden-sm-down">
+            <job_label_list [jobs]="farmnode.running_jobs"></job_label_list>
+          </td>
+          <td class="width-150">
+              <span class="badge badge-warning" *ngIf="!farmnode.accepting">ON HOLD</span>
+              <span class="badge" style="margin-top: 0px;"
+                [class.badge-success]="farmnode.status=='accepting'"
+                [class.badge-default]="farmnode.status=='offline'">
+                {{farmnode.status}}
+              </span> 
+              <button [disabled]="farmnode.status=='offline'" type="button" class="btn btn-primary btn-xs" (click)="reloadClient($event, farmnode.id)">Restart</button>
+            </td>
+        </tr>
+
+        </ng-container>
+
+        </tbody>
+      </table>
+
+    </div>
+
+</div>
+</section>
+
+<div *ngIf="selected_node_id>0" class="bottominfopanel" style="height:30%;">
+    <div class="header">
+      <h4 style="display: inline-block; padding:3px;">
+          Farm Node Details
+      </h4>
+      <div style="float: right !important; ">
+        <button class="btn btn-close" aria-label="Close" (click)="hideNodeDetails()">&times;</button>
+      </div>
+    </div>
+    <div class="content" style="padding:8px;">
+      <farm_node [nodeid]="selected_node_id"></farm_node>   
+    </div>
+</div>

@@ -1,0 +1,28 @@
+<div *ngIf="job_data">
+
+    <job_block [detailed]="1" [data]="job_data" (onGotoJob)="gotoJob($event)"></job_block>
+
+    <div *ngIf="job_data.parent">
+        <div style="padding: 8px; background-color:#505050"> Parent</div>
+        <job_block [data]="job_data.parent" (onGotoJob)="gotoJob($event)"></job_block>
+    </div>    
+
+    <div *ngIf="job_data.dependencies">
+        <div style="padding: 8px; background-color:#505050"> Dependencies</div>
+        <div *ngFor="let dep of job_data.dependencies; trackBy:trackByJobId">
+            <job_block [data]="dep" (onGotoJob)="gotoJob($event)"></job_block>
+        </div>
+        <div *ngIf="job_data.dependencies.length==0">None</div>
+    </div>    
+
+    <div *ngIf="job_data.children">
+        <div style="padding: 8px; background-color:#505050"> Children</div>
+        <div *ngFor="let child of job_data.children; trackBy:trackByJobId">
+            <job_block [data]="child" (onGotoJob)="gotoJob($event)"></job_block>
+        </div>
+        <div *ngIf="job_data.children.length==0">None</div>
+    </div>    
+
+</div>
+
+<h4 *ngIf="!job_data" style="display:inline;"><span class="badge badge-danger"><strong>Warning!</strong> Job does no exist</span></h4>

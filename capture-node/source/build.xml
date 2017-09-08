@@ -1,0 +1,84 @@
+<project>
+
+	<dependent name="opencv" />
+	<dependent name="boost" />
+	<dependent name="tbb" />
+	<dependent name="ximea" />
+	<dependent name="ffmpeg" />
+	<dependent name="openssl" />
+  <dependent name="rapidjson" />
+  <dependent name="python" />
+
+  <Program name="avacapture">
+
+	<copylocal value="true"/>
+
+	<rootnamespace value="EA.VH"/>
+	
+	<headerfiles>
+		<includes name="**.h"/>
+		<includes name="**.hpp"/>
+		<includes name="**.xml"/>
+		<includes name="**.build"/>
+	</headerfiles>
+
+	<sourcefiles basedir="">
+		<includes name="**.cpp"/>
+		<includes name="**.cxx"/>
+	</sourcefiles>
+
+    <libraries>
+      <includes fromfileset="package.python.libs"/>
+    </libraries>
+    
+    <dependencies>
+		<build>
+		</build>
+		<use>
+      ximea
+      boost
+      ffmpeg
+      opencv
+      openssl
+      rapidjson
+      tbb
+      python
+    </use>
+	</dependencies>
+
+  <config>
+    <warningsuppression>
+      -wd4242 <!-- warning C4242: 'return': conversion from 'int' to 'uint8_t', possible loss of data -->
+      -wd4244 <!-- warning C4242: 'return': conversion from 'int' to 'uint8_t', possible loss of data -->
+      -wd5031 <!-- Boost.asio -->
+      -wd4625 <!-- Boost.asio -->
+      -wd4626 <!-- Boost.asio -->
+      -wd4191 <!-- Boost.asio -->
+      -wd4548 <!-- Boost.asio -->
+      -wd5026 <!-- Boost.asio -->
+      -wd5027 <!-- Boost.asio -->
+      -wd4946 <!-- OpenCV -->
+      -wd4265 <!-- OpenCV -->
+			-wd4266 <!-- OpenCV -->
+			-wd4435 <!-- OpenCV -->
+      -wd4127 <!-- boost -->
+      -wd4996 <!-- ffmpeg deprecated function -->
+    </warningsuppression>
+  </config>
+    
+	<buildsteps>
+		<postbuild-step>
+			<command>
+        copy /Y "${package.python.dlldir}\python27.dll" "${package.avacapture.builddir}\${config}\bin\."
+        copy /Y "${package.python.dir}\dist\*.*" "${package.avacapture.builddir}\${config}\bin\."
+        copy "@{FileSetToString('package.ximea.dlls',' ')}" "${package.avacapture.builddir}\${config}\bin\."
+        copy /Y "${package.dir}\source\*.py" "${package.avacapture.builddir}\${config}\bin\."
+        xcopy /I /Y /S /R "${package.dir}\site-packages\*" "${package.avacapture.builddir}\${config}\bin\site-packages"
+      </command>
+		</postbuild-step>
+	</buildsteps>
+</Program>
+	
+<property name="package.sln.startupproject" value="avacapture"/>
+
+</project>

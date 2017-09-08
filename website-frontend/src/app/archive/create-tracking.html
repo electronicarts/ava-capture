@@ -1,0 +1,45 @@
+<h4 class="modal-title">Create Tracking Asset</h4>
+
+<div *ngIf="ct_take_info">
+
+    <h3>{{ct_take_info.name}}</h3>
+
+    <div style="text-align:center;">
+        <div style="display: inline-block; vertical-align: top; width: 340px; padding:5px;">
+        <div style="color:#000; background-color:#F5F5F5; text-align:center;">Tracking Start</div>
+        <div>
+            <video id="createTrackingAssetModalVideo0" width="330">
+            <source src="/static/thumb/{{ct_take_info.video_thumb}}" type="video/mp4">
+            </video>              
+        </div>
+        <div>Start Time: {{ct_start_time | number:'1.1-1'}}s ({{ct_fps}} fps)</div>
+        <div>
+            <input style="width: 200px;" min="0" [max]="ct_duration" type="range" (change)="onChangeStartFrame()" [(ngModel)]="ct_start_frame">
+            <input width="10" min="0" [max]="ct_duration" type="number" (change)="onChangeStartFrame()" [(ngModel)]="ct_start_frame">
+        </div>
+        </div>
+        <div style="display: inline-block; vertical-align: top; width: 340px; padding:5px;">
+        <div style="color:#000; background-color:#F5F5F5; text-align:center;">Tracking End</div>
+        <div>
+            <video id="createTrackingAssetModalVideo1" width="330">
+            <source src="/static/thumb/{{ct_take_info.video_thumb}}" type="video/mp4">
+            </video>              
+        </div>
+        <div>End Time: {{ct_end_time | number:'1.1-1'}}s ({{ct_fps}} fps)</div>
+        <div>
+            <input style="width: 200px;" min="0" [max]="ct_duration" type="range" (change)="onChangeEndFrame()" [(ngModel)]="ct_end_frame">
+            <input width="10" min="0" [max]="ct_duration" type="number" (change)="onChangeEndFrame()" [(ngModel)]="ct_end_frame">
+        </div>
+        </div>
+    </div>
+
+    <div style="text-align:center;">
+        Calibration File: <input size="80" type="text" [(ngModel)]="ct_calib_path">
+    </div>
+
+    <div class="alert alert-danger" *ngIf="error_message"><strong>Error!</strong> {{error_message}}</div>
+
+</div>
+
+<button [disabled]="!ct_calib_path || ct_end_time==0" (click)="onCreateTrackingAsset()" type="button" class="btn btn-apply"><i class="fa fa-file-video-o"></i> Create</button>
+<button type="button" class="btn btn-default" (click)="onCancel();">Cancel</button>

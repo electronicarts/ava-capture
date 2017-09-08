@@ -1,0 +1,9 @@
+<span class="badge badge-default" style="margin-top: 0px;"
+  [class.badge-success]="status=='success'"
+  [class.badge-error]="status=='failed'"
+  [class.badge-info]="status=='running'"
+  [class.badge-default]="status=='ready'"
+  [class.badge-warning]="status=='waiting'"
+  >
+  {{status}}
+</span>

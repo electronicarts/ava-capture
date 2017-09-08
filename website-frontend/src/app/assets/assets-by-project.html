@@ -1,0 +1,66 @@
+<launch-job-dialog #launchjobdialog></launch-job-dialog>
+
+<section class="widget" widget *ngIf="project_data">
+  <header style="color:#000; background-color:#E0E0E0; padding:4px;">
+    <h4><span class="fw-semi-bold"><strong>Static Scan Assets</strong> for project <strong>{{project_data.name}}</strong></span></h4>
+  </header>
+<div class="widget-body">
+
+  <div *ngFor="let asset of project_data.staticscanasset_related; trackBy:trackByAssetId">
+    <div style="color:#000; background-color:#F5F5F5; margin-bottom:4px; ; padding:4px;">
+      <div style="display: inline-block;"><b>{{asset.name}}</b> <small>#{{asset.id}}</small> 
+        <span *ngIf="asset.take_id"> Take: <b>{{asset.take_name}}</b> <small>#{{asset.take_id}}</small></span>
+      </div>
+      <div class="pull-right">
+        Launch Jobs: 
+        <button class="btn btn-xs btn-primary" (click)="createStaticAssetJob($event, asset.id, 'jobs.thumbnails.GenerateThumbnail', false)">Thumbnail</button>
+        <button class="btn btn-xs btn-primary" (click)="createStaticAssetJob($event, asset.id, 'jobs.lightstage.Prepare', true)">RawPrepare</button>
+        <button class="btn btn-xs btn-primary" (click)="createStaticAssetJob($event, asset.id, 'jobs.lightstage.PrepareNeutral', false)">MeshPrepare</button>
+        <button class="btn btn-xs btn-primary" (click)="onCreateJob($event, asset.id, 'jobs.lightstage.Geometry')">Geometry...</button>
+        <button class="btn btn-xs btn-primary" (click)="onCreateJob($event, asset.id, 'jobs.lightstage.Textures')">Textures...</button>
+      </div>
+    </div>
+    <div style="display: inline-block; vertical-align: top; width: 165px;">
+      <img *ngIf="asset.thumbnail_filename" width="160" height="auto" src="/static/thumb/{{asset.thumbnail_filename}}">
+    </div>
+    <div style="display: inline-block;">
+      <div><small>image_folder: {{asset.image_folder}}</small></div>
+      <div><small>calib_file: {{asset.calib_file}}</small></div>
+      <div><small>work_folder: {{asset.work_folder}}</small></div>
+      <job_label_list [jobs]="asset.related_jobs"></job_label_list>
+    </div>
+  </div>
+
+</div>
+</section>
+
+<section class="widget" widget *ngIf="project_data">
+  <header style="color: #000; background-color:#E0E0E0; padding:4px;">
+    <h4><span class="fw-semi-bold"><strong>Tracking Assets</strong> for project <strong>{{project_data.name}}</strong></span></h4>
+  </header>
+<div class="widget-body">
+
+  <div *ngFor="let asset of project_data.trackingassets_related; trackBy:trackByAssetId">
+    <div style="color: #000; background-color:#F5F5F5; margin-bottom:4px; padding:4px;"><b>{{asset.take_name}}</b> <small>#{{asset.id}}</small>
+      <div class="pull-right">
+        Launch Jobs: 
+        <button class="btn btn-xs btn-primary" (click)="createTrackingAssetJob($event, asset.id, 'jobs.thumbnails.GenerateThumbnail', false, null)">Thumbnail</button>
+        <button class="btn btn-xs btn-primary" (click)="createTrackingAssetJob($event, asset.id, 'jobs.extractframes.ExtractFramesFromAVIJob', false, null)">Extract Frames</button>
+        <button class="btn btn-xs btn-primary" (click)="createTrackingAssetJob($event, asset.id, 'jobs.rc.RealityCaptureReconstructFrameRangeJob', true, 'lax1--FBLABS-04')">Reconstruct</button>
+      </div>
+    </div>
+    <div style="display: inline-block; vertical-align: top; width: 165px;">
+      <video *ngIf="asset.video_thumb" width="160" autoplay loop>
+        <source src="/static/thumb/{{asset.video_thumb}}" type="video/mp4">
+      </video>         
+    </div>
+    <div style="display: inline-block;">
+      <div><small>path: {{asset.take_export_path}}</small></div>
+      <div><small>calib_file: {{asset.calib_file}}</small></div>
+      <div><small>range: {{asset.start_time}}s to {{asset.end_time}}s</small></div>
+      <job_label_list [jobs]="asset.related_jobs"></job_label_list>
+    </div>
+  </div>
+
+</div>
+</section>

@@ -1,0 +1,42 @@
+/* Copyright (C) 2017 Electronic Arts Inc. All rights reserved. */
+
+$header-bg: #191919;
+
+$theme-light: #444;
+$theme-bg: #262626;
+$theme-text-default: #AAA;
+$theme-text-title: #CCC;
+$theme-text-header: #707070;
+$theme-text-header-selected: #F09090;
+
+$theme-text-header-hover: lighten($theme-text-header, 20%);
+$theme-text-title-hover: lighten($theme-text-title, 20%);
+
+$notification-color-success: #5cb85c;
+$notification-color-error: #FF5425;
+$notification-color-warning: #FF9510;
+$notification-color-info: #3AEFFF;
+$notification-color-default: #707070;
+
+$button-color-accept: #5cb85c;
+$button-color-cancel: #ADADAD;
+$button-color-primary: #337ab7;
+$button-color-warning: $notification-color-warning;
+$button-color-destructive: $notification-color-error;
+
+$notif-text-color: #000;
+$notif-text-color-hover: #FFF;
+
+$form-element-name: $theme-text-default;
+$form-element-bg: #606060;
+$form-element-text: #D0D0D0;
+$form-element-border: darken($form-element-bg, 20%);
+
+$form-element-name-selected: #F0F090;
+$form-element-name-hover: lighten($form-element-name, 20%);
+
+$modal-dialog-bg-header: #777;
+$modal-dialog-bg-content: #AAA;
+$modal-dialog-bg-footer: #888;
+
+$widget-bg: #303030;

@@ -1,0 +1,57 @@
+<div *ngIf="data" style="color:#000; margin: 5px; padding: 5px; border-radius: 5px; border: 3px solid #A0A0A0; background-color:#eeeeee;">
+    
+    <div class="pull-right">
+
+        <job_status [status]="data.status"></job_status>
+
+        <div class="btn-group">
+            <button [disabled]="!(data.status=='failed' || data.status=='success') || !data.write_access" type="button" class="btn btn-primary btn-xs" (click)="restartJob($event, data.id, true, false)">
+              <i class="fa fa-repeat"></i> Restart
+            </button>
+            <button [disabled]="!(data.status=='failed' || data.status=='success') || !data.write_access" type="button" class="btn btn-primary btn-xs dropdown-toggle" 
+                onclick="dropdownToggle(this)" onblur="dropdownHide(this)">
+                <span class="caret"></span>
+            </button>
+            <div class="dropdown-menu">
+                <a class="dropdown-item" href="#" (click)="restartJob($event, data.id, true, false)">Clone and start (default)</a>
+                <a class="dropdown-item" href="#" (click)="restartJob($event, data.id, true, true)">Clone and start on {{data.node?.machine_name}}</a>
+                <a class="dropdown-item" href="#" (click)="restartJob($event, data.id, false, false)">Restart</a>
+                <a class="dropdown-item" href="#" (click)="restartJob($event, data.id, false, true)">Restart on {{data.node?.machine_name}}</a>
+            </div>                
+        </div>
+
+        <button [disabled]="!data.write_access || (data.status!='running')" type="button" class="btn btn-primary btn-xs" (click)="killJob($event, data.id)">
+            <i class="fa fa-times-circle"></i> Kill
+        </button>
+
+        <button [disabled]="!data.write_access || (data.status!='ready' && data.status!='failed' && data.status!='success')" type="button" class="btn btn-primary btn-xs" (click)="deleteJob($event, data.id)">
+            <i class="fa fa-trash"></i> Delete
+        </button>
+              
+    </div>   
+    <h4><a (click)="gotoJob(data.id)">Job #{{data.id}} <b>{{data.job_class}}</b></a></h4>
+    
+    <div><b>{{data.node?.machine_name}}</b> {{data.progress}}</div>
+
+    <div *ngIf="data.ext_take_name"><b>Take:</b> {{data.ext_take_name}}</div>
+    <div *ngIf="data.ext_scan_assets_name"><b>Scan:</b> {{data.ext_scan_assets_name}}</div>
+    <div *ngIf="data.ext_tracking_assets_name"><b>Track:</b> {{data.ext_tracking_assets_name}}</div>
+
+    <div>Created: {{data.created | date:"MM/dd/yy HH:mm"}} by {{data.created_by}} Req:{{data.req_version}} Priority:{{data.priority}} <span *ngIf="data.req_gpu">, GPU</span></div>
+    <div>Last Updated: {{data.modified | date:"MM/dd/yy HH:mm"}}</div>
+    <div>Duration: {{data.end_time | duration:data.start_time}}</div>
+
+    <div *ngIf="data.image_filename">
+        <img width="512" height="auto" src="/static/thumb/{{data.image_filename}}">
+    </div>
+
+    <div class="form-group" *ngIf="data.params">
+        <textarea style="width:100%;" readonly class="form-control" rows="5" id="params">{{data.params}}</textarea>
+    </div>
+
+    <div class="form-group" *ngIf="data.exception">
+        <label for="exception">Error:</label>
+        <textarea style="width:100%;" readonly class="form-control" rows="5" id="exception">{{data.exception}}</textarea>
+    </div>
+
+</div>

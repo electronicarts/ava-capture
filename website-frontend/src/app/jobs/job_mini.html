@@ -1,0 +1,15 @@
+<div>
+  <span class="badge" style="padding: 3px 5px; margin-bottom:1px;"
+    [class.badge-success]="job.status=='success'"
+    [class.badge-danger]="job.status=='failed'"
+    [class.badge-info]="job.status=='running'"
+    [class.badge-default]="job.status=='ready'"
+    [class.badge-warning]="job.status=='waiting'"
+    >
+    <i class="fa fa-cog"></i> <a style="color: inherit;" [routerLink]=" ['/app/job_details', job.id] ">{{job.id}}</a> {{job.job_class}} {{job.status}}
+    <a *ngIf="job.image_filename" (click)="toggleImage()"><i class="fa fa-image"></i></a>
+    <div *ngIf="show_image">
+        <img style="margin:4px;" width="256" height="auto" src="/static/thumb/{{job.image_filename}}">
+    </div>
+  </span>
+</div>

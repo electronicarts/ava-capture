@@ -1,0 +1,17 @@
+//
+// Copyright (c) 2017 Electronic Arts Inc. All Rights Reserved 
+//
+
+import { NgModule }      from '@angular/core';
+import { BrowserModule } from '@angular/platform-browser';
+import { RouterModule } from '@angular/router';
+
+import { FrontpageComponent }  from './frontpage.component';
+import { MeshViewerComponent }  from './meshviewer';
+
+@NgModule({
+  imports:      [ BrowserModule, RouterModule ],
+  declarations: [ FrontpageComponent, MeshViewerComponent ],
+  bootstrap:    [ FrontpageComponent ]
+})
+export class FrontpageModule { }

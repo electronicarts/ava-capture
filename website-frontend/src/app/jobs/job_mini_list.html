@@ -1,0 +1,5 @@
+<div style="line-height:1.0;">
+    <div *ngFor="let job; of:jobs; trackBy:trackById"> 
+        <job_label [job]="job"></job_label>
+    </div>
+</div>

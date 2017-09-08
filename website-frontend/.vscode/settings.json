@@ -1,0 +1,16 @@
+// Place your settings in this file to overwrite default and user settings.
+{
+    "typescript.tsdk": "./node_modules/typescript/lib",
+
+    // Configure glob patterns for excluding files and folders.
+    "files.exclude": {
+        "**/*.git": true,
+        "**/*.svn": true,
+        "**/*.hg": true,
+        "**/*.DS_Store": true,
+        "**/*.pyc": true,
+        "**/node_modules": true,
+        "**/dist-dev": true,
+        "**/dist-prod": true
+    }    
+}
