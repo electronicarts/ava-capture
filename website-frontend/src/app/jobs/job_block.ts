@@ -35,6 +35,14 @@ export class JobBlock {
     event.preventDefault();
   }
 
+  changePriority(job, value) {
+    this.jobsService.changePriority(job.id, value).subscribe(
+      data => {},
+      err => console.error(err),
+      () => {}
+    ); 
+  }
+
   killJob(event, job_id) {
 
     this.jobsService.killJob(job_id).subscribe(

@@ -42,6 +42,12 @@ export class JobsService {
      return this.authHttp.get('/jobs/farm_node/' + nodeid).map(res => res.json());
   }
 
+  changePriority(job_id, value) {
+    var dataObj = {};
+    dataObj['priority'] = value;
+    return this.authHttp.patch('/jobs/farm_jobs/' + job_id + '/', dataObj);    
+  }
+
   killJob(job_id) {
     var dataObj = {
       job_id : job_id

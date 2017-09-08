@@ -37,7 +37,14 @@
     <div *ngIf="data.ext_scan_assets_name"><b>Scan:</b> {{data.ext_scan_assets_name}}</div>
     <div *ngIf="data.ext_tracking_assets_name"><b>Track:</b> {{data.ext_tracking_assets_name}}</div>
 
-    <div>Created: {{data.created | date:"MM/dd/yy HH:mm"}} by {{data.created_by}} Req:{{data.req_version}} Priority:{{data.priority}} <span *ngIf="data.req_gpu">, GPU</span></div>
+    <div>
+        Created: {{data.created | date:"MM/dd/yy HH:mm"}} by {{data.created_by}}
+        Req:{{data.req_version}}
+        <b>Priority:</b>{{data.priority}} 
+        <a (click)="changePriority(data, data.priority+1);"><i class="fa fa-plus-circle"></i></a>
+        <a (click)="changePriority(data, data.priority-1);"><i class="fa fa-minus-circle"></i></a>
+        <span *ngIf="data.req_gpu">, GPU</span>
+    </div>
     <div>Last Updated: {{data.modified | date:"MM/dd/yy HH:mm"}}</div>
     <div>Duration: {{data.end_time | duration:data.start_time}}</div>
 
