@@ -202,7 +202,12 @@
   </div>
 </section>
 
-<button class="btn btn-default btn-xs" (click)="toggle_view_cameras_per_node();">Toggle Node View</button>
+<div class="btn-group">
+  <button [class.btn-primary]="camera_view_mode==0" type="button" class="btn btn-default btn-xs" (click)="camera_view_mode=0;">Details</button>
+  <button [class.btn-primary]="camera_view_mode==1" type="button" class="btn btn-default btn-xs" (click)="camera_view_mode=1;">Summary</button>
+  <button [class.btn-primary]="camera_view_mode==2" type="button" class="btn btn-default btn-xs" (click)="camera_view_mode=2;">Minimal</button>
+</div>
+
 <button class="btn btn-default btn-xs" (click)="show_camera_list=!show_camera_list;">Toggle Camera List</button>
 
 <div *ngIf="read_access">

@@ -426,12 +426,13 @@ ul.notification-area {
 }
 
 .btn-group .btn {
-	margin: 0px 0px;
+	margin: 0px;
 	border-radius:0px;		
 	float: left;
 }
 
 .btn-group .btn:active {
+	background-color: #AAA;
     border: 1px solid #C0C0C0;
 }
 
@@ -446,6 +447,10 @@ ul.notification-area {
 }
 
 .btn-group button:not(:last-child) {
+    border-right: none;
+}
+
+.btn-group button:not(:last-child):active {
     border-right: none;
 }
 
