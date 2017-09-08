@@ -21,7 +21,7 @@
     <div style="float: right;">
       {{job.status}}    
       <div class="dropdown-hover">
-        <button class="dropbtn"><i class="fa fa-bars" style="font-size:0.8em;"></i></button>
+        <button class="dropbtn"><i class="fa fa-bars" style="padding-right: 5px; padding-left: 2px;"></i></button>
         <div class="dropdown-content">
             <a *ngIf="show_link" [routerLink]="['/app/job_details', job.id] "><i class="fa fa-mail-forward"></i> Details</a>
             <a *ngIf="job.status=='failed' || job.status=='success'" (click)="restartJob($event, job.id, false, false);"><i class="fa fa-repeat"></i> Restart</a>

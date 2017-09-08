@@ -15,7 +15,7 @@ export class JobLabel {
 
   @Input() job : any;
   @Input() show_link: boolean = true;
-  @Input() minwidth: string = "320px";
+  @Input() minwidth: string = "340px";
 
   show_image : boolean = false;  
 
