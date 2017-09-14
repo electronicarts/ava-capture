@@ -149,7 +149,7 @@ public:
 	int encoding_buffers_used() const { return m_encoding_buffers_used; }
 	int writing_buffers_used() const { return m_writing_buffers_used; }
 
-	bool get_preview_image(std::vector<unsigned char>& buf);
+	bool get_preview_image(std::vector<unsigned char>& buf, bool* pIsHistogram=0);
 	bool get_large_preview_image(std::vector<unsigned char>& buf);
 
 	void set_display_focus_peak(bool e) { m_display_focus_peak = e; }
@@ -210,6 +210,7 @@ protected:
 	// Small preview stream when we are not recording
 	std::mutex m_mutex_preview_image;
 	cv::Mat preview_image;
+	bool preview_image_is_histogram;
 
 	// Large preview image when we are not recording
 	std::mutex m_mutex_large_preview_image;

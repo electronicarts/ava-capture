@@ -45,6 +45,8 @@ Camera::Camera()
 
 	m_encoding_buffers_used = 0;
 	m_writing_buffers_used = 0;
+
+	preview_image_is_histogram = false;
 }
 
 Camera::~Camera()
@@ -140,6 +142,7 @@ void Camera::got_image(cv::Mat img, double ts, int width, int height, int bitcou
 			{
 				std::lock_guard<std::mutex> lock(m_mutex_preview_image);
 				preview_image = new_preview_image;
+				preview_image_is_histogram = false;
 			}
 		}
 		else if (m_display_overexposed)
@@ -178,6 +181,7 @@ void Camera::got_image(cv::Mat img, double ts, int width, int height, int bitcou
 			{
 				std::lock_guard<std::mutex> lock(m_mutex_preview_image);
 				preview_image = new_preview_image;
+				preview_image_is_histogram = false;
 			}
 		}
 		else if (m_display_histogram)
@@ -235,6 +239,7 @@ void Camera::got_image(cv::Mat img, double ts, int width, int height, int bitcou
 			{
 				std::lock_guard<std::mutex> lock(m_mutex_preview_image);
 				preview_image = histImage;
+				preview_image_is_histogram = true;
 			}
 		}
 		else
@@ -263,6 +268,7 @@ void Camera::got_image(cv::Mat img, double ts, int width, int height, int bitcou
 			{
 				std::lock_guard<std::mutex> lock(m_mutex_preview_image);
 				preview_image = new_preview_image;
+				preview_image_is_histogram = false;
 			}
 		}
 
@@ -445,12 +451,15 @@ void Camera::stop_recording()
 	}
 }
 
-bool Camera::get_preview_image(std::vector<unsigned char>& buf)
+bool Camera::get_preview_image(std::vector<unsigned char>& buf, bool* pIsHistogram)
 {
 	std::lock_guard<std::mutex> lock(m_mutex_preview_image);
 
 	if (preview_image.empty())
 		return false;
+
+	if (pIsHistogram)
+		*pIsHistogram = preview_image_is_histogram;
 
 	return cv::imencode(".jpg", preview_image, buf); // cv2.IMWRITE_JPEG_QUALITY, 90
 }

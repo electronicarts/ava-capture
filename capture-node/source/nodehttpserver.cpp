@@ -198,9 +198,11 @@ std::string NodeHttpServer::getCamerasPage(std::shared_ptr<Session> request)
 
 			// Encode Image as JPG
 			std::vector<unsigned char> buf;
-			if (c->get_preview_image(buf))
+			bool is_histogram = false;
+			if (c->get_preview_image(buf, &is_histogram))
 			{ 
 				cam.AddMember("jpeg_thumbnail", rapidjson::Value(base64encode(buf).c_str(), d.GetAllocator()), d.GetAllocator());
+				cam.AddMember("jpeg_thumbnail_is_histogram", is_histogram, d.GetAllocator());
 			}
 
 			d.PushBack(cam, d.GetAllocator());
