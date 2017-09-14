@@ -126,11 +126,12 @@ void Camera::got_image(cv::Mat img, double ts, int width, int height, int bitcou
 			kernel = cv::Mat::ones(5, 5, CV_8U);
 			cv::dilate(work, work, kernel, cv::Point(-1, -1), 2);
 			cv::Mat invert = cv::Scalar::all(255) - work;
-			cv::Mat RG;
-			cv::max(work, last_image, RG);
-			cv::Mat B;
-			cv::min(invert, last_image, B);
-			cv::Mat arr[] = { B, RG, RG };
+
+			cv::Mat peakChannel;
+			cv::max(work, last_image, peakChannel);
+			cv::Mat imageChannel;
+			cv::min(invert, last_image, imageChannel);
+			cv::Mat arr[] = { imageChannel, peakChannel, imageChannel };
 
 			cv::Mat new_preview_image;
 
