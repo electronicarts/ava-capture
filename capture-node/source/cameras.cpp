@@ -653,7 +653,7 @@ AudioCamera::AudioCamera()
 {
 	m_unique_id = boost::asio::ip::host_name() + "_Audio0";
 	m_model = "Audio";
-	m_version = "nothing";
+	m_version = AudioRecorder::get_version();
 
 	m_width = 512;
 	m_height = 256;
@@ -697,7 +697,7 @@ void AudioCamera::captureThread()
 				cv::Point(i, m_height/2+min_sample*m_height/2/sample_scale),
 				cv::Scalar(clip, 0, 0));
 		}
-
+			
 		cv::applyColorMap(frame, frame, cv::COLORMAP_HOT);
 
 		Camera::got_image(frame, 0, m_width, m_height, 8, 1);

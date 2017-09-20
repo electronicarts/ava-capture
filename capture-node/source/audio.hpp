@@ -16,6 +16,8 @@ public:
 
     const short * get_raw_data(int& count);
 
+    static const char * get_version();
+
 private:
     struct AudioPrivate* p;
 };

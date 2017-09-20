@@ -284,4 +284,9 @@ void AudioRecorder::summarize(shared_json_doc summary)
 	summary->AddMember("audio", root, a);
 }
 
+const char * AudioRecorder::get_version()
+{
+    return Pa_GetVersionText();
+}
+
 #endif // WITH_PORTAUDIO        
