@@ -751,9 +751,28 @@ void AudioCamera::stop_recording()
 	if (recording())
 	{
 		rec->stop();
-		rec->start(0); // start streaming without recording
 
-		/// m_last_summary = ... TODO
+		// Prepare rapidjson tree to accumulate all data about this capture
+		shared_json_doc d(new rapidjson::Document());
+		d->SetObject();
+		d->AddMember("unique_id", rapidjson::Value(unique_id().c_str(), d->GetAllocator()), d->GetAllocator());
+
+		// Create summary for Audio recording
+		rec->summarize(d);
+
+		// Fill summary tree with this audio device
+		{
+			rapidjson::Value d_camera(rapidjson::kObjectType);
+			d_camera.AddMember("unique_id", rapidjson::Value(unique_id().c_str(), d->GetAllocator()), d->GetAllocator());
+			d_camera.AddMember("model", rapidjson::Value(model().c_str(), d->GetAllocator()), d->GetAllocator());
+			d_camera.AddMember("version", rapidjson::Value(version().c_str(), d->GetAllocator()), d->GetAllocator());
+			
+			d->AddMember("camera", d_camera, d->GetAllocator());
+		}
+		m_last_summary = d;
+
+		rec->start(0); // start streaming without recording
+		
 		m_recording = false;
 	}
 }

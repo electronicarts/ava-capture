@@ -10,6 +10,8 @@
 #include <fstream>
 #include <iostream>
 
+#include <string>
+
 typedef short SAMPLE;
 
 #define NUM_CHANNELS       (2)
@@ -94,10 +96,13 @@ private:
 
 struct AudioRecordData
 {
-    SAMPLE       recordedSamples[SAMPLES_PER_BUFFER * NUM_CHANNELS];
+    AudioRecordData() : frameIndex(0), maxFrameIndex(0), totalRecordedSamples(0) {}
+
+    SAMPLE        recordedSamples[SAMPLES_PER_BUFFER * NUM_CHANNELS];
     
-    int          frameIndex;
-    int          maxFrameIndex;
+    int           frameIndex;
+    int           maxFrameIndex;
+    unsigned long totalRecordedSamples;
 
     void flush()
     {
@@ -123,6 +128,8 @@ struct AudioPrivate
 
     int                 totalFrames;
     int                 numSamples;
+
+    std::string         filename;
 };
 
 const short * AudioRecorder::get_raw_data(int& count)
@@ -164,6 +171,7 @@ static int recordCallback( const void *inputBuffer, void *outputBuffer,
         }
 
         data->frameIndex += toCopy;
+        data->totalRecordedSamples += toCopy;
         remainToCopy -= toCopy;
         
         if (data->frameIndex >= data->maxFrameIndex)
@@ -193,10 +201,18 @@ AudioRecorder::~AudioRecorder()
 void AudioRecorder::start(const char * wav_filename)
 {
     if (wav_filename)
+    {
         p->data.writer.open(wav_filename);
+        p->filename = wav_filename;
+    }
+    else
+    {
+        p->filename.clear();
+    }
 
     p->data.maxFrameIndex = p->totalFrames = SAMPLES_PER_BUFFER;
     p->data.frameIndex = 0;
+    p->data.totalRecordedSamples = 0;
     p->numSamples = p->totalFrames * NUM_CHANNELS;
     for(int i=0; i<p->numSamples; i++ ) p->data.recordedSamples[i] = 0;
 
@@ -251,6 +267,21 @@ void AudioRecorder::stop()
 
     p->data.flush();
     p->data.writer.close();
+}
+
+void AudioRecorder::summarize(shared_json_doc summary)
+{
+	auto& a = summary->GetAllocator();
+
+	rapidjson::Value root(rapidjson::kObjectType);
+	root.AddMember("filename", rapidjson::Value(p->filename.c_str(), a), a);
+	root.AddMember("channels", NUM_CHANNELS, a);
+	root.AddMember("sample_rate", SAMPLE_RATE, a);
+    root.AddMember("bits_per_sample", sizeof(SAMPLE)*8, a);
+    root.AddMember("recorded_samples", p->data.totalRecordedSamples, a);
+    root.AddMember("duration", p->data.totalRecordedSamples / (double)SAMPLE_RATE, a);
+        
+	summary->AddMember("audio", root, a);
 }
 
 #endif // WITH_PORTAUDIO        
