@@ -10,6 +10,7 @@
 
 #include "json.hpp"
 #include "color_correction.hpp"
+#include "audio.hpp"
 
 #include <opencv2/highgui.hpp>
 
@@ -256,3 +257,24 @@ private:
 	cv::VideoCapture m_cap;
 	boost::thread capture_thread;
 };
+
+#ifdef WITH_PORTAUDIO
+
+class AudioCamera : public Camera
+{
+public:
+	AudioCamera();
+
+protected:
+	void captureThread();
+	void start_capture() override;
+	void stop_capture() override;
+	void start_recording(const std::vector<std::string>& folders, bool wait_for_trigger, int nb_frames) override;
+	void stop_recording() override;
+
+private:
+	boost::thread capture_thread;
+	std::unique_ptr<AudioRecorder> rec;
+};
+
+#endif // WITH_PORTAUDIO

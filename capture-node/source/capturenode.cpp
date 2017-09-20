@@ -13,7 +13,7 @@
 #include <iostream>
 #include <iterator>
 
-CaptureNode::CaptureNode(bool initializeWebcams, const std::string& recording_folder) 
+CaptureNode::CaptureNode(bool initializeWebcams, bool initializeAudio, const std::string& recording_folder) 
 	: m_sync_active(false), m_shutdownrequested(false)
 {
 	m_external_sync_always = false;
@@ -93,6 +93,14 @@ CaptureNode::CaptureNode(bool initializeWebcams, const std::string& recording_fo
 		std::vector<std::shared_ptr<Camera> > webcam_cameras = WebcamCamera::get_webcam_cameras();
 		std::copy(webcam_cameras.begin(), webcam_cameras.end(), std::back_inserter(m_cameras));
 	}
+
+#ifdef WITH_PORTAUDIO	
+	// Enable first audio device
+	if (initializeAudio)
+	{
+		m_cameras.push_back(std::make_shared<AudioCamera>());
+	}
+#endif
 
 	CaptureNode::scan_for_new_devices();
 }

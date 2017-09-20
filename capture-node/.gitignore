@@ -6,7 +6,7 @@
 Makefile
 CMakeCache.txt
 CMakeFiles/*
-*.cmake
+cmake_install.cmake
 
 # Intermediate build files
 *.o

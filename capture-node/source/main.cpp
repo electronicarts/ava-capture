@@ -96,6 +96,9 @@ int main(int argc, char** argv)
 		("port", po::value<int>()->default_value(DEFAULT_PORT), "Port of the server")
 		("webcams", po::bool_switch()->default_value(false), "Initialize all available Webcams")
 		("service", po::bool_switch()->default_value(false), "Run without the interactive prompt")
+#ifdef WITH_PORTAUDIO		
+		("audio", po::bool_switch()->default_value(false), "Initialize default audio capture device")
+#endif
 		("folder", po::value<std::string>()->default_value(std::string()), "Folder where recordings are stored");
 	po::variables_map vm;
 	try
@@ -123,9 +126,14 @@ int main(int argc, char** argv)
 	const bool use_webcams = vm["webcams"].as<bool>();
 	const bool run_as_service = vm["service"].as<bool>();
 
+#ifdef WITH_PORTAUDIO
+	const bool use_audio = vm["audio"].as<bool>();
+#else
+	const bool use_audio = false;
+#endif
 	std::string folder = vm["folder"].as<std::string>();
 
-	std::shared_ptr<CaptureNode> node(new CaptureNode(use_webcams, folder));
+	std::shared_ptr<CaptureNode> node(new CaptureNode(use_webcams, use_audio, folder));
 
 	NodeHttpServer httpd(node, 8080);
 	boost::thread http_thread([&httpd]() {httpd.serve_forever(); });

@@ -8,6 +8,8 @@
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_io.hpp>
 #include <boost/uuid/uuid_generators.hpp>
+#include <boost/filesystem.hpp>
+#include <boost/asio.hpp>
 
 #include <iostream>
 #include <numeric>
@@ -644,3 +646,116 @@ void WebcamCamera::stop_capture()
 		m_effective_fps = 0;
 	}
 }
+
+#ifdef WITH_PORTAUDIO
+
+AudioCamera::AudioCamera()
+{
+	m_unique_id = boost::asio::ip::host_name() + "_Audio0";
+	m_model = "Audio";
+	m_version = "nothing";
+
+	m_width = 512;
+	m_height = 256;
+
+	m_framerate = 30;
+
+	m_preview_width = default_preview_res;
+	m_preview_height = m_preview_width*m_height / m_width; // keep aspect ratio for preview
+
+	start_capture();
+}
+
+void AudioCamera::captureThread()
+{
+	static const cv::Scalar grey = cv::Scalar(200, 0, 0);
+	const int sample_scale = 32768;
+	const int channels = 2;
+	
+	while (m_capturing)
+	{
+		cv::Mat frame(m_height, m_width, CV_8U, cv::Scalar(0));		
+
+		int sample_count = 0;
+		const short *samples = rec->get_raw_data(sample_count);
+
+		// Draw one frame from the audio data
+		for (int i = 0; i < m_width; i++)
+		{
+			short min_sample = 0;
+			short max_sample = 0;
+			for (int s=i*sample_count/channels/m_width;s<(i+1)*sample_count/channels/m_width;s++)
+			{
+				min_sample = std::min(min_sample, samples[s*channels]);
+				max_sample = std::max(max_sample, samples[s*channels]);
+			}
+
+			short clip = std::max(abs(min_sample),abs(max_sample)) * 256 / sample_scale;
+
+			line(frame,
+				cv::Point(i, m_height/2+max_sample*m_height/2/sample_scale),
+				cv::Point(i, m_height/2+min_sample*m_height/2/sample_scale),
+				cv::Scalar(clip, 0, 0));
+		}
+
+		cv::applyColorMap(frame, frame, cv::COLORMAP_HOT);
+
+		Camera::got_image(frame, 0, m_width, m_height, 8, 1);
+
+		boost::this_thread::sleep_for(boost::chrono::milliseconds(1000/m_framerate));
+	}
+}
+
+void AudioCamera::start_capture()
+{
+	if (!m_capturing)
+	{
+		rec.reset(new AudioRecorder());
+		rec->start(0); // start streaming without recording
+
+		Camera::start_capture();
+		capture_thread = boost::thread([this]() {captureThread(); });
+	}
+}
+
+void AudioCamera::stop_capture()
+{
+	if (m_capturing)
+	{
+		Camera::stop_capture();
+		
+		capture_thread.join();
+		m_effective_fps = 0;
+
+		rec->stop();
+	}
+}
+
+void AudioCamera::start_recording(const std::vector<std::string>& folders, bool wait_for_trigger, int nb_frames)
+{
+	// Start recording frames to the specified file
+	if (!recording())
+	{
+		namespace fs = boost::filesystem;
+		fs::path filename = fs::path(folders[0]) / (m_unique_id + ".wav");
+
+		rec->stop();
+		rec->start(filename.string().c_str());
+
+		m_recording = true;
+	}
+}
+
+void AudioCamera::stop_recording()
+{
+	if (recording())
+	{
+		rec->stop();
+		rec->start(0); // start streaming without recording
+
+		/// m_last_summary = ... TODO
+		m_recording = false;
+	}
+}
+
+#endif // WITH_PORTAUDIO

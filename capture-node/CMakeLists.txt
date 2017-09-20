@@ -28,7 +28,17 @@ set(Boost_USE_STATIC_RUNTIME OFF)
 find_package(Boost 1.58.0 REQUIRED COMPONENTS thread filesystem program_options)
 include_directories(${Boost_INCLUDE_DIRS})
 
+# Portaudio
+include (FindPortaudio.cmake)
+include_directories(${PORTAUDIO_INCLUDE_DIRS})
+
+if (PORTAUDIO_FOUND)
+    add_definitions(-DWITH_PORTAUDIO)
+endif (PORTAUDIO_FOUND)
+
+# set(CMAKE_BUILD_TYPE Debug)
+
 add_executable(avaCapture ${SOURCES})
 
-target_link_libraries(avaCapture ${PYTHON_LIBRARY} ${OpenCV_LIBS} ${Boost_LIBRARIES} avcodec avformat avutil tbb m3api ${OPENSSL_LIBRARIES})
+target_link_libraries(avaCapture ${PYTHON_LIBRARY} ${OpenCV_LIBS} ${Boost_LIBRARIES} ${PORTAUDIO_LIBRARIES} avcodec avformat avutil tbb m3api ${OPENSSL_LIBRARIES})
 

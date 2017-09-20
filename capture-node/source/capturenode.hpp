@@ -12,7 +12,7 @@
 class CaptureNode
 {
 public:
-	CaptureNode(bool initializeWebcams, const std::string& recording_folder = std::string());
+	CaptureNode(bool initializeWebcams, bool initializeAudio, const std::string& recording_folder = std::string());
 	~CaptureNode();
 
 	const std::vector<std::shared_ptr<Camera> > cameraList();
