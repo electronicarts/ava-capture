@@ -388,7 +388,7 @@ void CaptureNode::prepare_single(int count)
 
 	for (auto& cam : m_cameras)
 	{
-		if (cam->capturing())
+		if (cam->capturing() && !cam->is_audio_only()) // Audio only devices not recorded in single-frame
 		{
 			cam->m_debug_in_capture_cycle = true;
 			m_recording_cameras.push_back(cam);

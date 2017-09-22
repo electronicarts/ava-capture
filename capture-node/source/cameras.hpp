@@ -272,6 +272,8 @@ protected:
 	void start_recording(const std::vector<std::string>& folders, bool wait_for_trigger, int nb_frames) override;
 	void stop_recording() override;
 
+	bool is_audio_only() const override { return true; }
+
 private:
 	boost::thread capture_thread;
 	std::unique_ptr<AudioRecorder> rec;
