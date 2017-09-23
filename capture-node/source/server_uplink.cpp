@@ -210,8 +210,9 @@ public:
 };
 
 ServerUplink::ServerUplink(std::shared_ptr<CaptureNode> pNode,
-	const char * SERVER, int PORT, const char * USERNAME, const char * PASSWORD) 
-	: running(false), m_node(pNode), m_server(SERVER), m_port(boost::lexical_cast<std::string>(PORT)), m_username(USERNAME), m_password(PASSWORD)
+	const char * SERVER, int PORT, const char * USERNAME, const char * PASSWORD, const char * GIT_REVISION) 
+	: running(false), m_node(pNode), m_server(SERVER), m_port(boost::lexical_cast<std::string>(PORT)), 
+	  m_username(USERNAME), m_password(PASSWORD), m_build_version(GIT_REVISION)
 {
 	std::cout << "Code Version: " << CODE_VERSION << std::endl;
 
@@ -287,7 +288,8 @@ std::string ServerUplink::sendKeepalive(bool request_params)
 	rapidjson::Document d;
 	d.SetObject();
 	d.AddMember("machine_name", rapidjson::Value(m_machine_name.c_str(), d.GetAllocator()), d.GetAllocator());
-
+	d.AddMember("build_version", rapidjson::Value(m_build_version.c_str(), d.GetAllocator()), d.GetAllocator());
+	
 #ifdef WIN32
 	d.AddMember("os", "windows", d.GetAllocator());	
 #elif __linux__

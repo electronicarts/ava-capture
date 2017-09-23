@@ -4,6 +4,9 @@ set(CMAKE_CXX_STANDARD 11)
 
 project("avaCapture")
 
+include(GitUtils.cmake)
+Git_GetCommitVersion()
+
 #add_definitions(-D_GLIBCXX_USE_CXX11_ABI=1)
 #add_definitions(-DRAPIDJSON_HAS_STDSTRING -DRAPIDJSON_HAS_CXX11_RVALUE_REFS)
 

@@ -11,6 +11,9 @@ CMakeFiles/*
 # Intermediate build files
 *.o
 
-# Executabled
+# Executables
 avaCapture
 ximeaTest
+
+# Generated file
+source/build_generated.h

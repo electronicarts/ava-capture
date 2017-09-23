@@ -11,7 +11,7 @@ class ServerUplink
 {
 public:
 	ServerUplink(std::shared_ptr<CaptureNode> pNode,
-		const char * SERVER, int PORT, const char * USERNAME, const char * PASSWORD);
+		const char * SERVER, int PORT, const char * USERNAME, const char * PASSWORD, const char * GIT_REVISION);
 	~ServerUplink();
 
 	std::string sendKeepalive(bool request_params=false);
@@ -28,6 +28,8 @@ private:
 	std::string m_port;
 	std::string m_username;
 	std::string m_password;
+
+	std::string m_build_version;
 
 	boost::thread m_thread;
 

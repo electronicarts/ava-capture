@@ -5,6 +5,8 @@
 #include "server_uplink.hpp"
 #include "embedded_python.hpp"
 
+#include "build_generated.h"
+
 #ifdef WIN32
 	#include <conio.h>
 #else
@@ -114,7 +116,7 @@ int main(int argc, char** argv)
 	NodeHttpServer httpd(node, 8080);
 	boost::thread http_thread([&httpd]() {httpd.serve_forever(); });
 
-	ServerUplink uplink(node, vm["server"].as<std::string>().c_str(), vm["port"].as<int>(), USERNAME, PASSWORD);
+	ServerUplink uplink(node, vm["server"].as<std::string>().c_str(), vm["port"].as<int>(), USERNAME, PASSWORD, GIT_REVISION);
 
 	std::string global_params = uplink.sendKeepalive(true);
 	node->setGlobalParams(global_params);
