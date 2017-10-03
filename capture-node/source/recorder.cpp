@@ -127,7 +127,10 @@ void SimpleImageRecorder::append_impl(cv::Mat img, double ts, int blacklevel)
 	}
 
 	if (m_bitcount>8)
-		tempImage = tempImage * (1 << (16 - m_bitcount)); // 10,12,14 bit images need to be scaled up to 16 bit value range
+		tempImage = tempImage * (1 << (16 - m_bitcount)); // 10,12,14 bit images need to be scaled up to 16 bit value range	
+
+	if (!(m_color_bayer || m_bitcount>8)) // if the image was not already copied due to post processing
+		tempImage = img.clone();
 
 	color_correction::linear_to_sRGB(tempImage); // TODO we should not do this for 8 bit, but then the image file should know it is linear
 
