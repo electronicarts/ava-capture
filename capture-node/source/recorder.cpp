@@ -132,7 +132,7 @@ void SimpleImageRecorder::append_impl(cv::Mat img, double ts, int blacklevel)
 	if (!(m_color_bayer || m_bitcount>8)) // if the image was not already copied due to post processing
 		tempImage = img.clone();
 
-	color_correction::linear_to_sRGB(tempImage); // TODO we should not do this for 8 bit, but then the image file should know it is linear
+	//color_correction::linear_to_sRGB(tempImage); // TODO we should not do this for 8 bit, but then the image file should know it is linear
 
 	cv::imwrite(filename.string(), tempImage);
 
@@ -195,8 +195,13 @@ void MetadataRecorder::close_impl()
 			{
 				stream << "ColorBayer: COLOR_BayerBG2RGB" << std::endl;
 				stream << "ColorBalance: " << m_color_balance.kR << ", " << m_color_balance.kG << ", " << m_color_balance.kB << std::endl;
+				stream << "ColorSpace: LinearRGB" << std::endl;
 			}
-
+			else
+			{
+				stream << "ColorSpace: Linear" << std::endl;			
+			}
+			
 			stream << "Version: " << m_camera->version() << std::endl;
 			stream << "Using Sync: " << m_camera->using_hardware_sync() << std::endl;
 
