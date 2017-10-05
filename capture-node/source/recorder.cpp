@@ -268,5 +268,14 @@ void MetadataRecorder::summarize(shared_json_doc summary)
 	root.AddMember("duration", duration(), a);
 	root.AddMember("using_sync", m_camera->using_hardware_sync(), a);
 	root.AddMember("missing_frames", m_missing_frame, a);
+
+	if (!m_timestamps.empty())
+	{
+		rapidjson::Value ts_a(rapidjson::kArrayType);
+		for (int i = 1; i < std::min<size_t>(m_timestamps.size(), 20); i++) // 20 first time deltas
+			ts_a.PushBack(m_timestamps[i]-m_timestamps[i-1], a);
+		root.AddMember("first_timedeltas", ts_a, a);	
+	}
+
 	summary->AddMember("meta", root, a);
 }
