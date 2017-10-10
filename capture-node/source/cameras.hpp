@@ -226,6 +226,11 @@ protected:
 	std::vector<std::shared_ptr<Recorder> > m_recorders;
 
 	std::map<std::string, CameraParameter> m_params;
+
+	// work space for focus peak
+	cv::Mat focus_peak_buffer[4];
+	int focus_peak_buffer_index;
+	int focus_peak_buffer_count;
 };
 
 class WebcamCamera : public Camera

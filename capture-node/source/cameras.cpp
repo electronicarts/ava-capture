@@ -47,6 +47,9 @@ Camera::Camera()
 	m_writing_buffers_used = 0;
 
 	preview_image_is_histogram = false;
+
+	focus_peak_buffer_index = 0;
+	focus_peak_buffer_count = 0;
 }
 
 Camera::~Camera()
@@ -104,6 +107,11 @@ void Camera::got_image(cv::Mat img, double ts, int width, int height, int bitcou
 	{
 		if (m_display_focus_peak)
 		{
+			const int FOCUS_THRESHOLD = 50; // on 255
+			const double HEATMAP_SCALE = 2.5;
+			const bool NORMALIZE_BRIGHTNESS = true;
+			const bool TEMPORAL_DENOISE = false;
+		
 			cv::Mat last_image;
 			cv::Mat work;
 
@@ -114,29 +122,51 @@ void Camera::got_image(cv::Mat img, double ts, int width, int height, int bitcou
 			else
 				last_image = img.clone(); // Grayscale camera
 
-			if (m_bitcount > 8) // convert the image to 8 bit range, the histogram expects values from 0 to 255
+			if (m_bitcount > 8) // convert the image to 8 bit range
 				last_image.convertTo(last_image, CV_8U, 1.0f / (1 << (m_bitcount - 8)));
 
-			// Focus Peaking: display yellow overlay for areas with high contrast
-			int focus_threshold = 80;
-			cv::Mat kernel = cv::Mat::ones(3, 3, CV_8S);
-			kernel.at<char>(1, 1) = -8;
-			cv::filter2D(last_image, work, -1, kernel);
-			cv::threshold(work, work, focus_threshold, 255, cv::THRESH_BINARY);
-			kernel = cv::Mat::ones(5, 5, CV_8U);
-			cv::dilate(work, work, kernel, cv::Point(-1, -1), 2);
-			cv::Mat invert = cv::Scalar::all(255) - work;
+			// Reduce resolution by 1/2
+			cv::resize(last_image, last_image, cv::Size(0, 0), 0.5, 0.5, cv::INTER_AREA);
 
-			cv::Mat peakChannel;
-			cv::max(work, last_image, peakChannel);
-			cv::Mat imageChannel;
-			cv::min(invert, last_image, imageChannel);
-			cv::Mat arr[] = { imageChannel, peakChannel, imageChannel };
+			// Average last 4 images to reduce noise
+			if (TEMPORAL_DENOISE)
+			{
+				focus_peak_buffer[focus_peak_buffer_index] = last_image.clone();
+				focus_peak_buffer_count = std::min(focus_peak_buffer_count+1,4);
+				focus_peak_buffer_index = (focus_peak_buffer_index+1)%4;
+				cv::Mat avgImg(cv::Size(last_image.cols, last_image.rows), CV_32FC1, cv::Scalar(0));
+				for (int i=0;i<focus_peak_buffer_count;i++)
+					if (focus_peak_buffer[i].cols==avgImg.cols && focus_peak_buffer[i].rows==avgImg.rows)
+						cv::accumulate(focus_peak_buffer[i], avgImg);
+				avgImg = avgImg / focus_peak_buffer_count;
+				avgImg.convertTo(last_image, CV_8U);
+			}
+			
+			double mean = cv::mean(last_image)[0]; // Mean brightness, only shot focus peak if within range
+			if (mean>16 && mean<256-16)
+			{
+				// Normalize brightness of the image
+				if (NORMALIZE_BRIGHTNESS)
+					last_image.convertTo(last_image, -1, 128.0/mean);
+			
+				// Compute contrast threshold
+				cv::Mat kernel = cv::Mat::ones(3, 3, CV_8S);
+				kernel.at<char>(1, 1) = -8;
+				cv::filter2D(last_image, work, -1, kernel);
+				cv::threshold(work, work, FOCUS_THRESHOLD, 255, cv::THRESH_BINARY);
+	
+				// Gaussian Blur on the map and apply color ramp
+				cv::GaussianBlur(work,work,cv::Size(151,151),0);
+				work = work * HEATMAP_SCALE; // Arbitrary scale
+				cv::applyColorMap(work, work, cv::COLORMAP_HOT);
+	
+				// Overlay heat map on top of our original image
+				cv::cvtColor(last_image, last_image, cv::COLOR_GRAY2BGR);
+				cv::addWeighted(last_image, 0.2, work, 1.0, 0.0, img);
+			}
 
+			// Save preview image
 			cv::Mat new_preview_image;
-
-			cv::merge(arr, 3, img);
-
 			cv::resize(img, new_preview_image, cv::Size(m_preview_width, m_preview_height), 0.0, 0.0, cv::INTER_NEAREST);
 			color_correction::linear_to_sRGB(new_preview_image);
 
