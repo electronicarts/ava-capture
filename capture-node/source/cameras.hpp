@@ -152,9 +152,9 @@ public:
 	bool get_preview_image(std::vector<unsigned char>& buf, bool* pIsHistogram=0);
 	bool get_large_preview_image(std::vector<unsigned char>& buf);
 
-	void set_display_focus_peak(bool e) { m_display_focus_peak = e; }
-	void set_display_overexposed(bool e) { m_display_overexposed = e; }
-	void set_display_histogram(bool e) { m_display_histogram = e; }
+	void set_display_focus_peak(bool e) { m_display_focus_peak = e&(!is_audio_only()); }
+	void set_display_overexposed(bool e) { m_display_overexposed = e&(!is_audio_only());; }
+	void set_display_histogram(bool e) { m_display_histogram = e&(!is_audio_only());; }
 
 	void software_trigger() { m_waiting_for_trigger_hold = false;  m_waiting_for_trigger = false; }
 	void remove_recording_hold();
