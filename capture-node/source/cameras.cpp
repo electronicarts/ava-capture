@@ -110,7 +110,9 @@ void Camera::got_image(cv::Mat img, double ts, int width, int height, int bitcou
 			const int FOCUS_THRESHOLD = 50; // on 255
 			const double HEATMAP_SCALE = 2.5;
 			const bool NORMALIZE_BRIGHTNESS = true;
-			const bool TEMPORAL_DENOISE = false;
+			const bool TEMPORAL_DENOISE = false; // average 4 frames to reduce noise
+			const int BLUR_SIZE = 151; // must be odd
+			const int BRIGHTNESS_THRESHOLD = 16; // focus peak will not run if mean brightness is less than this value (too dark)
 		
 			cv::Mat last_image;
 			cv::Mat work;
@@ -143,7 +145,7 @@ void Camera::got_image(cv::Mat img, double ts, int width, int height, int bitcou
 			}
 			
 			double mean = cv::mean(last_image)[0]; // Mean brightness, only shot focus peak if within range
-			if (mean>16 && mean<256-16)
+			if (mean>BRIGHTNESS_THRESHOLD && mean<256-BRIGHTNESS_THRESHOLD)
 			{
 				// Normalize brightness of the image
 				if (NORMALIZE_BRIGHTNESS)
@@ -156,7 +158,7 @@ void Camera::got_image(cv::Mat img, double ts, int width, int height, int bitcou
 				cv::threshold(work, work, FOCUS_THRESHOLD, 255, cv::THRESH_BINARY);
 	
 				// Gaussian Blur on the map and apply color ramp
-				cv::GaussianBlur(work,work,cv::Size(151,151),0);
+				cv::GaussianBlur(work,work,cv::Size(BLUR_SIZE,BLUR_SIZE),0);
 				work = work * HEATMAP_SCALE; // Arbitrary scale
 				cv::applyColorMap(work, work, cv::COLORMAP_HOT);
 	
