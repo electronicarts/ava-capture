@@ -81,6 +81,7 @@ XimeaCamera::XimeaCamera(int deviceId)
 		" CPU1:" << get_param_str(XI_PRM_MCU1_VERSION) <<
 		" CPU2:" << get_param_str(XI_PRM_MCU2_VERSION) <<
 		" XML:" << get_param_str(XI_PRM_XMLMAN_VERSION) <<
+		" BW:" << (m_max_bandwidth / 8) << "MB/s" <<
 		std::endl;
 	m_version = ss_version.str();
 
