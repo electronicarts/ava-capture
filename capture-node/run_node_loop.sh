@@ -7,7 +7,7 @@ while true; do
     cmake .
     make
     
-    ./avaCapture --folder ~/Pictures
+    ./avaCapture --service --folder ~/Pictures > avaCapture.log 2>&1
     
     if [ $? -ne 50 ]; then
         break
