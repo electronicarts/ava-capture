@@ -17,6 +17,8 @@
 
 #include "boost/date_time/posix_time/posix_time.hpp"
 
+//#define DEBUG_FRAME_TIMINGS
+
 Camera::Camera()
 {
 	m_unique_id = boost::uuids::to_string(boost::uuids::random_generator()());
@@ -42,6 +44,8 @@ Camera::Camera()
 	m_color_need_debayer = false;
 
 	m_debug_in_capture_cycle = false;
+	m_debug_timings = false;
+	m_prepare_recording = false;
 
 	m_encoding_buffers_used = 0;
 	m_writing_buffers_used = 0;
@@ -67,6 +71,26 @@ std::string Camera::toString() const
 void Camera::got_frame_timeout()
 {
 	m_effective_fps = 0.0f;
+}
+
+bool Camera::block_until_next_frame(double timeout_s)
+{
+	int current_Frame_index = m_image_counter;
+
+	while (timeout_s>0.0) 
+	{
+#ifdef DEBUG_FRAME_TIMINGS		
+		printf("*** Block until next frame (%d)\n", m_image_counter);
+#endif // DEBUG_FRAME_TIMINGS		
+
+		if (m_image_counter != current_Frame_index)
+			return true;
+			
+		boost::this_thread::sleep_for(boost::chrono::milliseconds(10));
+		timeout_s -= 0.1;
+	}
+
+	return false;
 }
 
 void Camera::got_image(cv::Mat img, double ts, int width, int height, int bitcount, int channels, int black_level)
@@ -102,8 +126,14 @@ void Camera::got_image(cv::Mat img, double ts, int width, int height, int bitcou
 		m_effective_fps = ts_d.average();
 	}
 
+#ifdef DEBUG_FRAME_TIMINGS	
+	if (m_debug_timings)
+		printf("*** %s %s%s%s %d (%f) %f %f\n", m_unique_id.c_str(), m_recording?"R":".", m_waiting_for_trigger?"W":".", 
+			m_waiting_for_trigger_hold?"H":".",m_image_counter,ts,frame_timestamp, dt);
+#endif // DEBUG_FRAME_TIMINGS			
+
 	// Generate thumbnail for live preview
-	if (!m_recording)
+	if (!m_recording && !m_prepare_recording)
 	{
 		if (m_display_focus_peak)
 		{
@@ -339,6 +369,11 @@ void Camera::got_image(cv::Mat img, double ts, int width, int height, int bitcou
 
 		if (!m_waiting_for_trigger && !m_closing_recorders)
 		{
+#ifdef DEBUG_FRAME_TIMINGS			
+			if (m_debug_timings)
+				printf("*** %s APPEND %f\n", m_unique_id.c_str(), dt);
+#endif // DEBUG_FRAME_TIMINGS				
+				
 			// Store first frame of each recordings
 			if (recording_first_frame.empty())
 			{
@@ -395,6 +430,7 @@ void Camera::start_recording(const std::vector<std::string>& folders, bool wait_
 		m_got_trigger_timeout = false;
 		m_closing_recorders = false;
 		m_recording = true;
+		m_prepare_recording = false;
 		m_waiting_delay = 3.0;
 		m_waiting_for_trigger_hold = true;
 		m_waiting_for_trigger = wait_for_trigger;

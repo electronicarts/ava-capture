@@ -125,10 +125,12 @@ public:
 	virtual void start_recording(const std::vector<std::string>& folders, bool wait_for_trigger, int nb_frames=-1);
 	virtual void stop_recording();
 
-	virtual void set_bitdepth(int bitdepth) {}
+	virtual bool set_bitdepth(int bitdepth) {}
 
 	virtual void set_roi(int x_min, int y_min, int x_max, int y_max) {}
 	virtual void reset_roi() {}
+
+	bool block_until_next_frame(double timeout_s);
 
 	std::string toString() const;
 	std::string unique_id() const { return m_unique_id; }
@@ -162,6 +164,8 @@ public:
 	shared_json_doc last_summary() { return m_last_summary; }
 
 	bool m_debug_in_capture_cycle;
+	bool m_debug_timings;
+	bool m_prepare_recording;
 
 protected:
 	int default_preview_res;

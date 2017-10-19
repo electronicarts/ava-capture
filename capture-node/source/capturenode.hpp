@@ -20,8 +20,9 @@ public:
 
 	void setGlobalParams(const std::string& json);
 
-	bool sync_ok() const { return m_sync_active; }
+	bool sync_connected() const;
 	std::string sync_port() const;
+
 	int global_framerate() const { return m_global_framerate; }
 	int global_pulse_duration() const { return m_global_pulse_duration; }
 

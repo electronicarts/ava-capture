@@ -103,6 +103,11 @@ CaptureNode::~CaptureNode()
 		cam->stop_capture();
 }
 
+bool CaptureNode::sync_connected() const 
+{ 
+	return (m_sync.get() && m_sync->isOK()); 
+}
+
 void CaptureNode::remove_invalid_devices()
 {
 	std::lock_guard<std::mutex> lock(m_mutex);
@@ -382,12 +387,18 @@ void CaptureNode::prepare_single(int count)
 		}
 	}
 
+	for (auto& cam : m_recording_cameras)
+	{
+		cam->m_debug_timings = true;
+		cam->m_prepare_recording = true;
+	}
+
 	// Change bitdepth for single capture
 	for (auto& cam : m_recording_cameras)
 	{
-		cam->set_bitdepth(m_bitdepth_maximum);
+		if (cam->set_bitdepth(m_bitdepth_maximum))
+			cam->block_until_next_frame(0.240);
 	}
-	boost::this_thread::sleep_for(boost::chrono::milliseconds(240)); // enough time to start recieving frames again
 
 	// Begin recording
 	for (auto& cam : m_recording_cameras)
@@ -400,16 +411,19 @@ void CaptureNode::recording_trigger()
 {
 	std::cout << "STATUS> Trigger" << std::endl;
 
-	// Pause Sync for 300 ms
-	pause_sync();
-	boost::this_thread::sleep_for(boost::chrono::milliseconds(300));
-	resume_sync(true);
-
 	// Trigger Recording on all cameras that have no hardware sync
 	for (auto& cam : m_recording_cameras)
 	{
 		if (!cam->using_hardware_sync())
 			cam->software_trigger();
+	}
+	
+	// Pause Sync for 300 ms
+	if (sync_connected())
+	{
+		pause_sync();
+		boost::this_thread::sleep_for(boost::chrono::milliseconds(250));
+		resume_sync(true);
 	}
 }
 
@@ -432,6 +446,9 @@ shared_json_doc CaptureNode::finalize_single()
 		}
 	}
 	
+	for (auto& cam : m_recording_cameras)
+		cam->m_debug_timings = false;
+
 	// Get last recording summary from all cameras
 	{
 		for (auto& cam : m_recording_cameras)
@@ -507,6 +524,9 @@ void CaptureNode::prepare_multi_stage1()
 		it.first->start_recording(cam_folders, true);
 		m_recording_cameras.push_back(it.first);
 	}
+
+	for (auto& cam : m_recording_cameras)
+		cam->m_debug_timings = true;
 }
 
 void CaptureNode::prepare_multi_stage2()
@@ -549,6 +569,9 @@ shared_json_doc CaptureNode::stop_recording_all()
 		cam->m_debug_in_capture_cycle = false;
 		cam->set_bitdepth(m_bitdepth_default);
 	}
+
+	for (auto& cam : m_recording_cameras)
+		cam->m_debug_timings = false;
 
 	// Finalize json structure
 	all_cameras_doc->AddMember("cameras", cameras, all_cameras_doc->GetAllocator());

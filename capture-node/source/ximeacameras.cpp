@@ -14,7 +14,7 @@
 
 #include <opencv2/highgui.hpp>
 
-const bool debug_msg = true;
+const bool debug_msg = false;
 const int required_width_alignment = 32;
 
 std::set<std::string> XimeaCamera::s_unique_id_list;
@@ -50,7 +50,7 @@ AcquisitionGuard::~AcquisitionGuard()
 }
 
 XimeaCamera::XimeaCamera(int deviceId) 
-: m_deviceHandle(0), m_has_lens_control(false)
+: m_deviceHandle(0), m_has_lens_control(false), m_last_bitdepth(0)
 {
 	char buffer[512];
 
@@ -122,7 +122,8 @@ XimeaCamera::XimeaCamera(int deviceId)
 	// row alignment
 	if (get_param_int(XI_PRM_WIDTH) % required_width_alignment != 0)
 	{
-		printf("Adjusting image width to %d alignment\n", required_width_alignment);
+		if (debug_msg)
+			printf("Adjusting image width to %d alignment\n", required_width_alignment);
 		set_param_int(XI_PRM_WIDTH, get_param_int(XI_PRM_WIDTH) - (get_param_int(XI_PRM_WIDTH) % required_width_alignment));
 	}
 
@@ -169,9 +170,13 @@ bool XimeaCamera::isXiQ() const
 	return m_device_name[0] == 'M' && m_device_name[1] == 'Q';
 }
 
-void XimeaCamera::set_bitdepth(int bitdepth)
+bool XimeaCamera::set_bitdepth(int bitdepth)
 {
-	if (!is_valid()) return;
+	if (!is_valid()) return false;
+	if (m_last_bitdepth == bitdepth) return false;
+
+	if (debug_msg)
+		printf("*** %s Changing bitdepth to %d\n", m_unique_id.c_str(), bitdepth);
 
 	int format = (bitdepth == 8) ? XI_RAW8 : XI_RAW16;
 
@@ -188,12 +193,17 @@ void XimeaCamera::set_bitdepth(int bitdepth)
 		set_param_int(XI_PRM_IMAGE_DATA_BIT_DEPTH, bitdepth);
 	}
 
-	m_bitcount = get_param_int(XI_PRM_IMAGE_DATA_BIT_DEPTH);
+	m_last_bitdepth = m_bitcount = get_param_int(XI_PRM_IMAGE_DATA_BIT_DEPTH);
 
 	printf("%s Sensor:%d bits Output:%d bits Image:%d bits (packing:%d)\n", m_device_name.c_str(),
 		get_param_int(XI_PRM_SENSOR_DATA_BIT_DEPTH), get_param_int(XI_PRM_OUTPUT_DATA_BIT_DEPTH), get_param_int(XI_PRM_IMAGE_DATA_BIT_DEPTH), get_param_int(XI_PRM_OUTPUT_DATA_PACKING));
 
 	setBandwidth();
+
+	if (debug_msg)
+		printf("*** %s Changing bitdepth DONE\n", m_unique_id.c_str());
+	
+	return true;
 }
 
 void XimeaCamera::set_hardware_sync_freq(int framerate)
@@ -354,7 +364,8 @@ void XimeaCamera::param_set(const char * name, float value)
 {
 	if (!is_valid()) return;
 
-	printf("Set parameter %s to %f\n", name, value);
+	if (debug_msg)
+		printf("Set parameter %s to %f\n", name, value);
 	
 	std::lock_guard<std::recursive_mutex> lock(m_mutex);
 

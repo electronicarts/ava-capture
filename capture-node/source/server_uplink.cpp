@@ -298,7 +298,7 @@ std::string ServerUplink::sendKeepalive(bool request_params)
 
 	d.AddMember("code_version", CODE_VERSION, d.GetAllocator());	
 	d.AddMember("ip_address", rapidjson::Value(m_ip_address.c_str(), d.GetAllocator()), d.GetAllocator());
-	d.AddMember("sync_found", m_node->sync_ok(), d.GetAllocator());
+	d.AddMember("sync_found", m_node->sync_connected(), d.GetAllocator());
 	if (request_params)
 		d.AddMember("request_camera_params", true, d.GetAllocator());
 

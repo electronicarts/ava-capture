@@ -71,7 +71,7 @@ protected:
 	virtual void start_capture() override;
 	virtual void stop_capture() override;
 
-	virtual void set_bitdepth(int bitdepth) override;
+	virtual bool set_bitdepth(int bitdepth) override;
 
 	virtual void set_roi(int x_min, int y_min, int x_max, int y_max) override;
 	virtual void reset_roi() override;
@@ -96,6 +96,8 @@ private:
 
 	bool m_has_lens_control;
 	unsigned int m_max_bandwidth;
+
+	unsigned int m_last_bitdepth;
 
 	static std::set<std::string> s_unique_id_list;
 

@@ -164,7 +164,7 @@ int main(int argc, char** argv)
 				std::cout << "* " << cam->toString() << std::endl;
 			}
 
-			if (node->sync_ok())
+			if (node->sync_connected())
 				std::cout << "*** Hardware Sync(" << node->sync_port() << ") @ " << node->global_framerate() 
 					<< " Hz (" << node->global_pulse_duration() << " us) ***" << std::endl;
 
