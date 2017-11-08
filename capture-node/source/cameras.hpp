@@ -130,6 +130,8 @@ public:
 	virtual void set_roi(int x_min, int y_min, int x_max, int y_max) {}
 	virtual void reset_roi() {}
 
+	virtual bool is_audio_only() const { return false; }
+
 	bool block_until_next_frame(double timeout_s);
 
 	std::string toString() const;
