@@ -1,3 +1,4 @@
+// Copyright (C) 2017 Electronic Arts Inc.  All rights reserved.
 
 #ifdef WITH_PORTAUDIO
 
