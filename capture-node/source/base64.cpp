@@ -7,6 +7,8 @@
 #include <boost/archive/iterators/base64_from_binary.hpp>
 #include <boost/archive/iterators/transform_width.hpp>
 
+const char * base_64padding[] = {"","==","="};
+
 std::string base64encode(const std::string& str)
 {
 	typedef
@@ -22,7 +24,7 @@ std::string base64encode(const std::string& str)
 		std::ostream_iterator<char>(os)
 	);
 
-	return os.str();
+	return os.str() + base_64padding[str.size()%3];
 }
 
 std::string base64encode(const std::vector<unsigned char>& buf)
@@ -40,5 +42,5 @@ std::string base64encode(const std::vector<unsigned char>& buf)
 		std::ostream_iterator<char>(os)
 	);
 
-	return os.str();
+	return os.str() + base_64padding[buf.size()%3];
 }
