@@ -289,35 +289,30 @@ std::string NodeHttpServer::getCameraPage(std::shared_ptr<Session> request, cons
 			ssOut << "HTTP/1.1 200 OK" << std::endl;
 			ssOut << "content-type: text/html" << std::endl;
 			ssOut << std::endl;
-			ssOut << "<html><head><title>Live Camera Feed " << req_cam_id << "</title></head>\
-				<body style=\"height:100%; margin:0;\"><div>Live Camera Feed " << req_cam_id << "</div>\
-				<canvas id=\"my_canvas\" style=\"position:absolute; width:100%; height:100%;\">\
-				</canvas>\
-				<script language = \"JavaScript\">\
-					var num = 0;\
-					var canvas = document.getElementById('my_canvas');\
-					var ctx = canvas.getContext('2d');\
-					var img = new Image();\
-					img.onload = function() {\
-						ctx.drawImage(img, 0, 0, img.width, img.height, \
-						0, 0, canvas.width, canvas.height);\
-						window.setTimeout(function(){\
-							img.src = \"/camera/" << req_cam_id << "/large_preview/\" + num;\
-							num = num + 1;\
-						}, 30);\
-					};\
-					img.onerror = function() {\
-						window.setTimeout(function(){\
-							img.src = \"/camera/" << req_cam_id << "/large_preview/\" + num;\
-							num = num + 1;\
-						}, 500);\
-					};\
-					img.onerror = function() {\
-					};\
-					img.src = \"/camera/" << req_cam_id << "/large_preview\";\
-				</script>\
-				</p>\
-				</body></html>";
+			ssOut << "\
+<html><head><title>Live Camera Feed " << req_cam_id << "</title></head>\
+<body style=\"height:100%; margin:0;\">\
+<div>Live Camera Feed " << req_cam_id << "</div>\
+<div><img id=\"my_img\" style=\"width:100%;\"></div>\
+<script language = \"JavaScript\">\
+    var num = 0;\
+    var tmp = document.getElementById('my_img');\
+    tmp.onload = function() {\
+        window.setTimeout(function(){\
+            tmp.src = \"/camera/" << req_cam_id << "/large_preview/\" + num;\
+            num = num + 1;\
+        }, 10);\
+    };\
+    tmp.onerror = function() {\
+        window.setTimeout(function(){\
+            tmp.src = \"/camera/" << req_cam_id << "/large_preview/\" + num;\
+            num = num + 1;\
+        }, 500);\
+    };\
+    tmp.src = \"/camera/" << req_cam_id << "/large_preview\";\
+</script>\
+</body></html>\
+			";
 
 			return ssOut.str();
 		}
