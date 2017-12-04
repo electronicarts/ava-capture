@@ -45,6 +45,8 @@ Camera::Camera()
 	m_preview_height = default_preview_res;
 	m_color_need_debayer = false;
 
+	m_bayerpattern = cv::COLOR_BayerBG2RGB;
+
 	m_debug_in_capture_cycle = false;
 	m_debug_timings = false;
 	m_prepare_recording = false;
@@ -259,7 +261,7 @@ void Camera::got_image(cv::Mat img, double ts, int width, int height, int bitcou
 			cv::Mat last_image;
 
 			if (m_color_need_debayer && img.channels() == 1)
-				cv::cvtColor(img, last_image, cv::COLOR_BayerBG2RGB);
+				cv::cvtColor(img, last_image, m_bayerpattern);
 			else
 				last_image = img.clone(); // Grayscale camera
 
@@ -317,7 +319,7 @@ void Camera::got_image(cv::Mat img, double ts, int width, int height, int bitcou
 
 			// Debayer only if this is the raw from camera
 			if (m_color_need_debayer && img.channels()==1)
-				cv::cvtColor(img, tempImage, cv::COLOR_BayerBG2RGB);
+				cv::cvtColor(img, tempImage, m_bayerpattern);
 
 			cv::resize(tempImage, new_preview_image, cv::Size(m_preview_width, m_preview_height), 0.0, 0.0, cv::INTER_NEAREST);
 
@@ -423,7 +425,7 @@ void Camera::start_recording(const std::vector<std::string>& folders, bool wait_
 		m_writing_buffers_used = 0;
 
 		if (nb_frames>0)
-			m_recorders.push_back(std::make_shared<SimpleImageRecorder>(unique_id(), framerate(), m_width, m_height, m_bitcount, m_color_need_debayer, m_color_balance, folders));
+			m_recorders.push_back(std::make_shared<SimpleImageRecorder>(unique_id(), framerate(), m_width, m_height, m_bitcount, m_color_need_debayer, m_bayerpattern, m_color_balance, folders));
 		else
 			m_recorders.push_back(std::make_shared<SimpleMovieRecorder>(unique_id(), framerate(), m_width, m_height, m_bitcount, folders));
 		m_recorders.push_back(std::make_shared<MetadataRecorder>(unique_id(), framerate(), m_width, m_height, m_bitcount, m_color_need_debayer, m_color_balance, folders, this));
@@ -485,7 +487,7 @@ void Camera::stop_recording()
 				cv::Mat tempImage = recording_first_frame;
 
 				if (m_color_need_debayer)
-					cv::cvtColor(recording_first_frame, tempImage, cv::COLOR_BayerBG2RGB);
+					cv::cvtColor(recording_first_frame, tempImage, m_bayerpattern);
 
 				cv::resize(tempImage, tempImage, cv::Size(m_preview_width*2, m_preview_height*2), 0.0, 0.0, cv::INTER_AREA);
 
@@ -548,7 +550,7 @@ bool Camera::get_large_preview_image(std::vector<unsigned char>& buf)
 
 		if (m_color_need_debayer && large_preview_image.channels() == 1)
 		{
-			cv::cvtColor(large_preview_image, tempImage, cv::COLOR_BayerBG2RGB);
+			cv::cvtColor(large_preview_image, tempImage, m_bayerpattern);
 			color_correction::apply(tempImage, m_color_balance, large_preview_image_black_point);
 			is_copy = true;
 		}
