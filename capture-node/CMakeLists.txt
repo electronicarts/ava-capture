@@ -30,10 +30,12 @@ include_directories(${Boost_INCLUDE_DIRS})
 
 # Portaudio
 include (FindPortaudio.cmake)
-include_directories(${PORTAUDIO_INCLUDE_DIRS})
 
 if (PORTAUDIO_FOUND)
+    include_directories(${PORTAUDIO_INCLUDE_DIRS})
     add_definitions(-DWITH_PORTAUDIO)
+else (PORTAUDIO_FOUND)
+    set(PORTAUDIO_LIBRARIES "")
 endif (PORTAUDIO_FOUND)
 
 # set(CMAKE_BUILD_TYPE Debug)
