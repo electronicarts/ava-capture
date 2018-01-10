@@ -126,7 +126,7 @@ public:
 	virtual void start_recording(const std::vector<std::string>& folders, bool wait_for_trigger, int nb_frames=-1);
 	virtual void stop_recording();
 
-	virtual bool set_bitdepth(int bitdepth) {}
+	virtual bool set_bitdepth(int bitdepth) { return false; }
 
 	virtual void set_roi(int x_min, int y_min, int x_max, int y_max) {}
 	virtual void reset_roi() {}

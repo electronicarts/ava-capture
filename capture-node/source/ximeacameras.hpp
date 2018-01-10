@@ -97,7 +97,7 @@ private:
 	bool m_has_lens_control;
 	unsigned int m_max_bandwidth;
 
-	unsigned int m_last_bitdepth;
+	int m_last_bitdepth;
 
 	static std::set<std::string> s_unique_id_list;
 
