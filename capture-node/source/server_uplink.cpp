@@ -12,7 +12,6 @@
 #include <boost/thread/thread.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/filesystem.hpp>
-#include <boost/lexical_cast.hpp>
 
 #include <iostream>
 #include <iomanip>
@@ -211,7 +210,7 @@ public:
 
 ServerUplink::ServerUplink(std::shared_ptr<CaptureNode> pNode,
 	const char * SERVER, int PORT, const char * USERNAME, const char * PASSWORD, const char * GIT_REVISION) 
-	: running(false), m_node(pNode), m_server(SERVER), m_port(boost::lexical_cast<std::string>(PORT)), 
+	: running(false), m_node(pNode), m_server(SERVER), m_port(std::to_string(PORT)), 
 	  m_username(USERNAME), m_password(PASSWORD), m_build_version(GIT_REVISION)
 {
 	std::cout << "Code Version: " << CODE_VERSION << std::endl;
