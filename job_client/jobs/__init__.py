@@ -2,24 +2,24 @@
 # Copyright (c) 2017 Electronic Arts Inc. All Rights Reserved 
 #
 
-from base import BaseJob
+from __future__ import print_function
+from __future__ import absolute_import
+
+from .base import BaseJob
+
 
 import os
 import sys
 
+
 # Import all job modules
 
 try:
-    import archive
+    from . import archive
 except:
-    print 'Could not import archive'
+    print('Could not import archive')
 
 try:
-    import thumbnails
+    from . import test
 except:
-    print 'Could not import thumbnails'
-
-try:
-    import test
-except:
-    print 'Could not import test'
+    print('Could not import test')

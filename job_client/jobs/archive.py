@@ -2,13 +2,40 @@
 # Copyright (c) 2017 Electronic Arts Inc. All Rights Reserved 
 #
 
+from __future__ import print_function
+from __future__ import absolute_import
+
+from builtins import object
 import json
 import shutil
 import os
+import re
 import time
 import logging
+from sys import platform
 
-from base import BaseJob
+from .base import BaseJob
+
+class DeleteFiles(BaseJob):
+    def __call__(self, parameters, pipe, log):
+
+        params = json.loads(parameters)
+
+        if 'files' in params:
+            for f in params['files']:
+
+                if os.path.exists(f):
+
+                    pipe.send('Delete %s' % f)
+
+                    # ED: Should this job fail if we cannot delete the files?
+                    try:
+                        os.remove(f)
+                    except:
+                        pass
+
+    class Meta(object):
+        description = 'Delete local of remote files'
 
 class ExportTake(BaseJob):
     def __call__(self, parameters, pipe, log):
@@ -38,7 +65,7 @@ class ExportTake(BaseJob):
 
         self.yieldToChildren(child_to_launch)
 
-    class Meta:
+    class Meta(object):
         description = 'This job is used to copy files from a local folder to a network storage'
 
 def safeCopyFileGenerator(src, dest, block_size = 64*1024*1024):  
@@ -54,6 +81,16 @@ def safeCopyFileGenerator(src, dest, block_size = 64*1024*1024):
                 yield len(arr)
                 arr = fin.read(block_size)
 
+def nice_time(s):
+    hours = s // 3600 
+    minutes = (s-3600*hours) // 60
+    seconds = int(s-3600*hours-60*minutes)
+    if hours>0:
+        return '%d hours %d minutes' % (hours,minutes)
+    if minutes>0:
+        return '%d minutes %d seconds' % (minutes,seconds)
+    return '%d seconds' % seconds
+
 class CopyFiles(BaseJob):
     def __call__(self, parameters, pipe, log):
 
@@ -63,10 +100,16 @@ class CopyFiles(BaseJob):
 
         if 'file_list' in params:
 
-            copied_size = 0
             start_time = time.time()
             file_count = len(params['file_list'])
             copy_speed = 0
+
+            copied_size = 0
+            total_size = 0
+
+            for src,dest in params['file_list']:
+                if os.path.exists(src):
+                    total_size = total_size + os.path.getsize(src)
 
             for i,t in enumerate(params['file_list']):
 
@@ -96,14 +139,19 @@ class CopyFiles(BaseJob):
                     file_size = os.path.getsize(src)
 
                     for copied in safeCopyFileGenerator(src, dest_file):
+                        
                         # Update stats
                         copied_size += copied
-
                         elapsed = time.time() - start_time
                         if elapsed > 0.0:
                             copy_speed = copied_size/1024/1024/elapsed
+                        
+                        # Compute estimated ETA
+                        eta = ''
+                        if copy_speed>0 and copied_size>0:
+                            eta = nice_time(max(total_size-copied_size,0)/1024/1024/copy_speed) + ' remaining'
 
-                        pipe.send('Copying file %d of %d (%d MB/s)' % (i+1,file_count,int(copy_speed)))
+                        pipe.send('Copying file %d of %d (%d MB/s) %s' % (i+1,file_count,int(copy_speed), eta))
 
                     if not os.path.exists(dest_file):
                         raise Exception('Destination file does not exist: %s' % dest_file)
@@ -122,14 +170,14 @@ class CopyFiles(BaseJob):
         
         log.info('Done')
 
-    class Meta:
+    class Meta(object):
         description = 'This job is used to copy files from a local folder to a network storage'
 
 if __name__ == "__main__":
 
     # Test SafeCopyFile
 
-    print 'Test SafeCopyFile'
+    print('Test SafeCopyFile')
 
     src = r'C:\ava_capture\20170508_094614\26681150_000.avi'
     dest = r'C:\ava_capture\20170508_094614\26681150_000b.avi'
@@ -138,4 +186,4 @@ if __name__ == "__main__":
     total = 0
     for x in safeCopyFileGenerator(src, dest, 8*1024*1024):
         total += x
-        print total*100/file_size
+        print(total*100/file_size)
