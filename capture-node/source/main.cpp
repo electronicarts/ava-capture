@@ -96,6 +96,7 @@ int main(int argc, char** argv)
 		("server", po::value<std::string>()->default_value(DEFAULT_SERVER), "Server address")
 		("port", po::value<int>()->default_value(DEFAULT_PORT), "Port of the server")
 		("webcams", po::bool_switch()->default_value(false), "Initialize all available Webcams")
+		("dummy", po::bool_switch()->default_value(false), "Add dummy test camera")
 		("service", po::bool_switch()->default_value(false), "Run without the interactive prompt")
 #ifdef WITH_PORTAUDIO		
 		("audio", po::bool_switch()->default_value(false), "Initialize default audio capture device")
@@ -132,9 +133,10 @@ int main(int argc, char** argv)
 #else
 	const bool use_audio = false;
 #endif
+	const bool use_dummycam = vm["dummy"].as<bool>();
 	std::string folder = vm["folder"].as<std::string>();
 
-	std::shared_ptr<CaptureNode> node(new CaptureNode(use_webcams, use_audio, folder));
+	std::shared_ptr<CaptureNode> node(new CaptureNode(use_webcams, use_audio, use_dummycam, folder));
 
 	// HTTP Server
 	NodeHttpServer httpd(node, 8080);
