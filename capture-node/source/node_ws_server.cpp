@@ -45,6 +45,7 @@ WSServer::WSServer(int port)
 #ifdef USE_TLS_WEBSOCKET
     server.set_tls_init_handler(&on_tls_init);
 #endif
+    server.clear_access_channels(websocketpp::log::alevel::frame_header | websocketpp::log::alevel::frame_payload); 
     server.set_message_handler(std::bind(&WSServer::on_message, this, std::placeholders::_1, std::placeholders::_2));
     server.listen(port);
     server.start_accept();   
