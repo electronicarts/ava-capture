@@ -7,6 +7,8 @@ project("avaCapture")
 include(GitUtils.cmake)
 Git_GetCommitVersion()
 
+include(ExternalProject)
+
 #add_definitions(-D_GLIBCXX_USE_CXX11_ABI=1)
 #add_definitions(-DRAPIDJSON_HAS_STDSTRING -DRAPIDJSON_HAS_CXX11_RVALUE_REFS)
 
@@ -38,9 +40,23 @@ else (PORTAUDIO_FOUND)
     set(PORTAUDIO_LIBRARIES "")
 endif (PORTAUDIO_FOUND)
 
+# websocketpp
+set(WEBSOCKETPP_ROOT ${CMAKE_BINARY_DIR}/thirdparty/websocketpp)
+set(WEBSOCKETPP_INCLUDE_DIR ${WEBSOCKETPP_ROOT}/src/websocketpp_external)
+ExternalProject_Add(websocketpp_external
+    PREFIX ${WEBSOCKETPP_ROOT}
+    GIT_REPOSITORY "https://github.com/zaphoyd/websocketpp.git"
+    BUILD_COMMAND ""
+    INSTALL_COMMAND ""
+    CONFIGURE_COMMAND ""
+)
+include_directories(${WEBSOCKETPP_INCLUDE_DIR})
+message(${WEBSOCKETPP_INCLUDE_DIR})
+
 # set(CMAKE_BUILD_TYPE Debug)
 
 add_executable(avaCapture ${SOURCES})
+add_dependencies(avaCapture websocketpp_external)
 
 target_link_libraries(avaCapture ${PYTHON_LIBRARY} ${OpenCV_LIBS} ${Boost_LIBRARIES} ${PORTAUDIO_LIBRARIES} avcodec avformat avutil tbb m3api ${OPENSSL_LIBRARIES})
 

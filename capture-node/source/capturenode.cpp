@@ -94,6 +94,14 @@ CaptureNode::CaptureNode(bool initializeWebcams, bool initializeAudio, const std
 		std::copy(webcam_cameras.begin(), webcam_cameras.end(), std::back_inserter(m_cameras));
 	}
 
+	// Initialize a dummy camera for testing
+	if (0)
+	{ 
+		std::vector<std::shared_ptr<Camera> > dummy_cameras = DummyCamera::get_dummy_cameras(1);
+		std::copy(dummy_cameras.begin(), dummy_cameras.end(), std::back_inserter(m_cameras));
+	}
+
+
 #ifdef WITH_PORTAUDIO	
 	// Enable first audio device
 	if (initializeAudio)

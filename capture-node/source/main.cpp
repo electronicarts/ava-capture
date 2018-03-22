@@ -1,6 +1,7 @@
 // Copyright (C) 2017 Electronic Arts Inc.  All rights reserved.
 
 #include "nodehttpserver.hpp"
+#include "node_ws_server.hpp"
 #include "capturenode.hpp"
 #include "server_uplink.hpp"
 #include "embedded_python.hpp"
@@ -135,9 +136,15 @@ int main(int argc, char** argv)
 
 	std::shared_ptr<CaptureNode> node(new CaptureNode(use_webcams, use_audio, folder));
 
+	// HTTP Server
 	NodeHttpServer httpd(node, 8080);
 	boost::thread http_thread([&httpd]() {httpd.serve_forever(); });
 
+	// Websocker Server
+	NodeWSServer wdd(node, 9002);
+	boost::thread wd_thread([&wdd]() {wdd.serve_forever(); });
+
+	// Up-link to server
 	ServerUplink uplink(node, vm["server"].as<std::string>().c_str(), vm["port"].as<int>(), USERNAME, PASSWORD, GIT_REVISION);
 
 	std::string global_params = uplink.sendKeepalive(true);
@@ -295,8 +302,11 @@ int main(int argc, char** argv)
 		}
 	}
 
+	// Close Webserver and Websocet Server
 	httpd.close();
 	http_thread.join();	
+	wdd.close();
+	wd_thread.join();	
 
 	if (node->shutdown_requested())
 	{

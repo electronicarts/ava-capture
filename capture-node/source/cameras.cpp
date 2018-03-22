@@ -647,6 +647,72 @@ void WebcamCamera::stop_capture()
 	}
 }
 
+DummyCamera::DummyCamera(int id) : m_id(id)
+{
+	std::stringstream ss;
+	ss << "Dummy" << id;
+
+	m_unique_id = ss.str();
+	m_model = "Dummy";
+	m_version = "1.0";
+
+	m_width = 320;
+	m_height = 200;
+	m_framerate = 10;
+
+	m_preview_width = default_preview_res;
+	m_preview_height = m_preview_width*m_height / m_width; // keep aspect ratio for preview
+
+	start_capture();
+}
+
+std::vector<std::shared_ptr<Camera> > DummyCamera::get_dummy_cameras(int count)
+{
+	std::vector<std::shared_ptr<Camera> > v;
+
+	for (int i=0;i<count;i++)
+	{
+		v.push_back(std::make_shared<DummyCamera>(i));
+	}
+
+	return v;
+}
+
+void DummyCamera::captureThread()
+{
+	int i=0;
+	cv::Mat frame(cv::Size(m_width, m_height), CV_8UC1);
+	while (m_capturing)
+	{
+		cv::line(frame, cv::Point(0, i), cv::Point(m_width-1, i), rand()&0xFF);
+
+		Camera::got_image(frame, 0, m_width, m_height, 8, 1);
+
+		boost::this_thread::sleep_for(boost::chrono::milliseconds((long)(1000.0/m_framerate)));
+
+		i = (i+1) % m_height;
+	}
+}
+
+void DummyCamera::start_capture()
+{
+	if (!m_capturing)
+	{
+		Camera::start_capture();
+		capture_thread = boost::thread([this]() {captureThread(); });
+	}
+}
+
+void DummyCamera::stop_capture()
+{
+	if (m_capturing)
+	{
+		Camera::stop_capture();
+		capture_thread.join();
+		m_effective_fps = 0;
+	}
+}
+
 #ifdef WITH_PORTAUDIO
 
 AudioCamera::AudioCamera()
