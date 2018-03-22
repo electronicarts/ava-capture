@@ -8,9 +8,43 @@
 
 #include <boost/algorithm/string.hpp>
 
+#ifdef USE_TLS_WEBSOCKET
+
+typedef websocketpp::lib::shared_ptr<boost::asio::ssl::context> context_ptr;
+
+// std::string get_password() {
+//     return "blabla";
+// }
+
+context_ptr on_tls_init(websocketpp::connection_hdl)
+{
+    std::cout << "on_tls_init" << std::endl;
+    context_ptr ctx = websocketpp::lib::make_shared<boost::asio::ssl::context>(boost::asio::ssl::context::sslv23);
+    try {
+        ctx->set_options(
+            boost::asio::ssl::context::default_workarounds |
+            boost::asio::ssl::context::no_sslv2 |
+            boost::asio::ssl::context::no_sslv3 |
+            boost::asio::ssl::context::single_dh_use
+        );
+        //ctx->set_password_callback(std::bind(&get_password));
+        ctx->use_certificate_chain_file("server_cert.pem");
+        ctx->use_private_key_file("server_key.pem", boost::asio::ssl::context::pem);
+        ctx->set_verify_mode(boost::asio::ssl::verify_none); // SECURITY: Disabled certificate verification
+    } catch (std::exception& e) {
+        std::cout << "on_tls_init failed: " << e.what() << std::endl;
+    }
+    return ctx;
+}
+
+#endif // USE_TLS_WEBSOCKET
+
 WSServer::WSServer(int port)
 {
     server.init_asio();
+#ifdef USE_TLS_WEBSOCKET
+    server.set_tls_init_handler(&on_tls_init);
+#endif
     server.set_message_handler(std::bind(&WSServer::on_message, this, std::placeholders::_1, std::placeholders::_2));
     server.listen(port);
     server.start_accept();   
@@ -18,6 +52,11 @@ WSServer::WSServer(int port)
 
 WSServer::~WSServer()
 {
+}
+
+void WSServer::serve_forever_in_thread()
+{
+	runner = boost::thread([this]() {this->serve_forever(); });
 }
 
 void WSServer::serve_forever()
@@ -31,9 +70,10 @@ void WSServer::close()
 
     server.stop_listening();
     server.stop();
+    runner.join();
 }
 
-void WSServer::on_message(websocketpp::connection_hdl hdl, ws_server::message_ptr msg)
+void WSServer::on_message(websocketpp::connection_hdl hdl, serverT::message_ptr msg)
 {
     //std::cout << "WEBSOCKET> message:" << msg->get_payload() << std::endl;
 }
@@ -52,7 +92,7 @@ NodeWSServer::~NodeWSServer()
 {
 }
 
-void NodeWSServer::on_message(websocketpp::connection_hdl hdl, ws_server::message_ptr msg)
+void NodeWSServer::on_message(websocketpp::connection_hdl hdl, serverT::message_ptr msg)
 {
     //std::cout << "WEBSOCKET> message:" << msg->get_payload() << std::endl;
 

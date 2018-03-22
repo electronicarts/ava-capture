@@ -142,7 +142,7 @@ int main(int argc, char** argv)
 
 	// Websocker Server
 	NodeWSServer wdd(node, 9002);
-	boost::thread wd_thread([&wdd]() {wdd.serve_forever(); });
+	wdd.serve_forever_in_thread();
 
 	// Up-link to server
 	ServerUplink uplink(node, vm["server"].as<std::string>().c_str(), vm["port"].as<int>(), USERNAME, PASSWORD, GIT_REVISION);
@@ -306,7 +306,6 @@ int main(int argc, char** argv)
 	httpd.close();
 	http_thread.join();	
 	wdd.close();
-	wd_thread.join();	
 
 	if (node->shutdown_requested())
 	{

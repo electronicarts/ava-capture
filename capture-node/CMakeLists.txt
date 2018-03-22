@@ -9,6 +9,8 @@ Git_GetCommitVersion()
 
 include(ExternalProject)
 
+#add_definitions(-DUSE_TLS_WEBSOCKET)
+
 #add_definitions(-D_GLIBCXX_USE_CXX11_ABI=1)
 #add_definitions(-DRAPIDJSON_HAS_STDSTRING -DRAPIDJSON_HAS_CXX11_RVALUE_REFS)
 

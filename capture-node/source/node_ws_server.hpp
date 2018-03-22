@@ -4,12 +4,24 @@
 
 #include <memory>
 
-#include <websocketpp/config/asio_no_tls.hpp>
+#include <boost/thread/thread.hpp>
+
+#ifdef USE_TLS_WEBSOCKET
+	#include <websocketpp/config/asio.hpp>
+#else
+	#include <websocketpp/config/asio_no_tls.hpp>
+#endif
 #include <websocketpp/server.hpp>
-typedef websocketpp::server<websocketpp::config::asio> ws_server;
+
 
 class CaptureNode;
 struct WSServerPrivate;
+
+#ifdef USE_TLS_WEBSOCKET
+	typedef websocketpp::server<websocketpp::config::asio_tls> serverT;
+#else
+	typedef websocketpp::server<websocketpp::config::asio> serverT;
+#endif
 
 class WSServer
 {
@@ -17,14 +29,16 @@ public:
 	WSServer(int port);
 	virtual ~WSServer();
 	void serve_forever();
+	void serve_forever_in_thread();
 	void close();
 
 protected:
 	void send(websocketpp::connection_hdl hdl, const std::string& s);
-	virtual void on_message(websocketpp::connection_hdl hdl, ws_server::message_ptr msg);
+	virtual void on_message(websocketpp::connection_hdl hdl, serverT::message_ptr msg);
 
 private:
-	ws_server server;
+	serverT server;
+	boost::thread runner;
 };
 
 class NodeWSServer : public WSServer
@@ -34,7 +48,7 @@ public:
 	virtual ~NodeWSServer();
 
 protected:
-	void on_message(websocketpp::connection_hdl hdl, ws_server::message_ptr msg) override;
+	void on_message(websocketpp::connection_hdl hdl, serverT::message_ptr msg) override;
 
 private:
 	std::shared_ptr<CaptureNode> m_node;
