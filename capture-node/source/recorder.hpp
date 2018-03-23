@@ -70,13 +70,14 @@ protected:
 class SimpleImageRecorder : public SimpleRecorder
 {
 public:
-	SimpleImageRecorder(const std::string& unique_name, int framerate, int width, int height, int bitcount, bool color_bayer, color_correction::rgb_color_balance bal, const std::vector<std::string>& folders);
+	SimpleImageRecorder(const std::string& unique_name, int framerate, int width, int height, int bitcount, bool color_bayer, int bayer_pattern, color_correction::rgb_color_balance bal, const std::vector<std::string>& folders);
 
 protected:
 	virtual void append_impl(cv::Mat img, double ts, int blacklevel) override;
 	virtual void close_impl() override;
 
 	bool m_color_bayer;
+	int m_bayerpattern;
 	color_correction::rgb_color_balance m_color_balance;
 };
 

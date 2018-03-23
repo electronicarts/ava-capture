@@ -210,7 +210,7 @@ if not secure_settings.PROD_SERVER: # DEV Server has a different way to serve st
     FRONTEND_URL = STATIC_URL + 'd/index.html#'
     STATICFILES_DIRS = [
         ('thumb', os.path.abspath(os.path.join(BASE_DIR, r'static/thumb'))),
-        ('d', os.path.abspath(os.path.join(BASE_DIR, r'/dist-dev'))), # path set in docker run
+        ('d', os.path.abspath(os.path.join(BASE_DIR, r'dist-dev'))), # path set in docker run
     ]
     DATABASES = {
         'default' : {

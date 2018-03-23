@@ -210,6 +210,8 @@ protected:
 	double m_last_ts;
 	double m_waiting_delay;
 
+	int m_bayerpattern; // camera bayer pattern
+
 	color_correction::rgb_color_balance m_color_balance;
 
 	CircularBuffer<double, 10> ts_d;
