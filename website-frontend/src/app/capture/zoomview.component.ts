@@ -2,10 +2,106 @@
 // Copyright (c) 2017 Electronic Arts Inc. All Rights Reserved 
 //
 
-import { Component, Input, ViewChild } from '@angular/core';
+import { Component, Input, Output, ViewChild, EventEmitter } from '@angular/core';
 
 import { CaptureService } from './capture.service';
 import { ImageZoomComponent } from './imagezoom.component';
+
+import {$WebSocket, WebSocketSendMode} from 'angular2-websocket/angular2-websocket';
+
+export interface ImageLoader {
+  stop();
+  next();
+}
+
+export class UrlImageLoader implements ImageLoader {
+
+  // Simple image loader class. Construct with ip and camera uid, the callback will be 
+  // called each time an image is recieved.
+
+  cb: (string) => void;
+  cam_ip : string;
+  cam_uid : string;
+  counter = 0;
+  active = false;
+
+  constructor(cam_ip : string, cam_uid : string, cb : (string) => void) {
+    this.cam_ip = cam_ip;
+    this.cam_uid = cam_uid;
+    this.cb = cb;
+    this.active = true;
+  }
+  
+  fetch() {
+    if (this.active) {
+      // Retrieving new imge
+
+      this.counter++;    
+      var url = 'http://'+this.cam_ip+':8080/camera/'+this.cam_uid+'/large_preview/' + this.counter;
+      this.cb(url);
+    }
+  }
+
+  next() {
+    // This will be called when we are ready for a new image
+    setTimeout(() => {
+      if (this.active) {
+        this.fetch();
+      }
+    }, 30); // wait at least 30 ms between images
+  }
+
+  stop() {
+    this.active = false;
+  }
+}
+
+export class WSImageLoader implements ImageLoader {
+
+  // Simple image loader class. Construct with ip and camera uid, the callback will be 
+  // called each time an image is recieved.
+
+  cb: (string) => void;
+  cam_ip : string;
+  cam_uid : string;
+  active = false;
+  ws : any = null;
+
+  constructor(cam_ip : string, cam_uid : string, cb : (string) => void) {
+    this.cam_ip = cam_ip;
+    this.cam_uid = cam_uid;
+    this.cb = cb;
+    this.active = true;
+
+    var websocket_protocol = location.protocol=="https:" ? "wss:" : "ws:";
+    this.ws = new $WebSocket(websocket_protocol+"//"+cam_ip+":9002");
+    this.ws.onMessage(
+      (msg: MessageEvent)=> {
+        this.cb("data:image/jpg;base64,"+msg.data);
+      },
+      {autoApply: false}
+    ); 
+  }
+  
+  fetch() {
+    if (this.active) {
+      this.ws.send("capture/"+this.cam_uid+"/large_preview").subscribe();
+    }
+  }
+
+  next() {
+    // This will be called when we are ready for a new image
+    setTimeout(() => {
+      if (this.active) {
+        this.fetch();
+      }
+    }, 30); // wait at least 30 ms between images
+  }
+
+  stop() {
+    this.active = false;
+  }
+}
 
 @Component({
   selector: 'zoomview-selector',
@@ -27,28 +123,29 @@ export class ZoomViewComponent {
   public cam_ip : string = '';
   public cam_rotation : number = 0;
 
-  counter = 0;
   visible = false;
 
-  loadCameraData() {
+  imageLoader : ImageLoader = null;
 
-    if (this.imagezoom) {
-      this.counter++;
+  startImageLoader() {
 
-      var url = 'http://'+this.cam_ip+':8080/camera/'+this.cam_unique_id+'/large_preview/' + this.counter;
-
-      this.imagezoom.setImageSrc(url, this.cam_rotation, () => {
-        if (this.visible) {
-          setTimeout(() => {
-            this.loadCameraData();
-          }, 30);
+    this.imageLoader = new WSImageLoader(this.cam_ip, this.cam_unique_id, (url : string) => {
+      if (this.visible && this.imagezoom) {
+        this.imagezoom.setImageSrc(url, this.cam_rotation, () => {
+          // Callback when the image was used 
+          if (this.imageLoader) {
+            this.imageLoader.next();
+          }
+        });  
+      } else {
+        // Image was not used but we ask for a next one anyway
+        if (this.imageLoader) {
+          this.imageLoader.next();
         }
-      });
-    } else {
-      setTimeout(() => {
-        this.loadCameraData();
-      }, 50);
     }
+    });
+
+    this.imageLoader.next();
   }
 
   setROI(values : number[]) {
@@ -78,11 +175,15 @@ export class ZoomViewComponent {
 
     if (this.imagezoom)
       this.imagezoom.resetView();
-    this.loadCameraData();
-
+    this.startImageLoader();
     this.visible = true;
   }
   public hide(): void {
+
+    if (this.imageLoader) {
+      this.imageLoader.stop();
+      this.imageLoader = null;  
+    }
 
     if (this.imagezoom)
       this.imagezoom.clear();

@@ -14,6 +14,7 @@ import { SessionNameComponent } from './sessionname.component';
 import { ZoomViewComponent } from './zoomview.component';
 
 import { LoadDataEveryMs } from '../../utils/reloader';
+import { LiveNodeLink } from './live_link';
 
 var $ = require("jquery");
 
@@ -61,6 +62,7 @@ export class LiveCapturePage {
   bitdepth_single = 8;
 
   loader = new LoadDataEveryMs();
+  livelink = new LiveNodeLink();
 
   project_id = 0;
   project_name = '';
@@ -84,7 +86,7 @@ export class LiveCapturePage {
 
   available_freqs = [10, 20, 24, 30, 40, 50, 60, 70, 72, 80, 90, 100, 120];
 
-  thumbnail_preview_fps = 5;
+  thumbnail_preview_fps = 5; // Update camera details at 5 fps
 
   camera_view_mode = 0;
 
@@ -402,6 +404,8 @@ export class LiveCapturePage {
         this.capturenodes = data.nodes;
         this.capturenodes['counter'] = this.counter++;
 
+        this.livelink.update_from_nodes(data.nodes);
+
         // Update list of unique camera models
         var updated_camera_count = 0;
         var updated_syncs_found = 0;
@@ -453,6 +457,8 @@ export class LiveCapturePage {
 
       this.location_id = +params['id']; // (+) converts string 'id' to a number
 
+      this.livelink.set_location(this.location_id);
+
       this.captureService.getLocationName(this.location_id).subscribe(
           data => {
             this.location_name = data;
@@ -483,6 +489,9 @@ export class LiveCapturePage {
 
   ngOnDestroy(): void {
     this.cancelSubscriptions();
+
+    this.livelink.release();
+    this.livelink = null;
   }
 
 }
