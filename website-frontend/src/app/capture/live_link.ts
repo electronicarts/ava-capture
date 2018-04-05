@@ -16,9 +16,14 @@ export class NodeLink
         // Initialize and create one websocket
         this.node_id = node.id;
         this.node_ptr = node;
+
         const webSocketConfig = {reconnectIfNotNormalClose: true} as WebSocketConfig;
-        var websocket_protocol = location.protocol=="https:" ? "wss:" : "ws:";
-        this.ws = new $WebSocket(websocket_protocol + "//"+node.ip_address+":9002", null, webSocketConfig);
+        if (location.protocol=="https:") {
+            this.ws = new $WebSocket("wss://"+node.machine_name+":9003", null, webSocketConfig);
+        } else {
+            this.ws = new $WebSocket("ws://"+node.ip_address+":9002", null, webSocketConfig);
+        }      
+
         this.ws.onMessage(
             (msg: MessageEvent)=> {
                 var res = msg.data.split(";", 2);

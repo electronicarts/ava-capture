@@ -7,7 +7,7 @@ import { Component, Input, Output, ViewChild, EventEmitter } from '@angular/core
 import { CaptureService } from './capture.service';
 import { ImageZoomComponent } from './imagezoom.component';
 
-import {$WebSocket, WebSocketSendMode} from 'angular2-websocket/angular2-websocket';
+import {$WebSocket, WebSocketSendMode, WebSocketConfig} from 'angular2-websocket/angular2-websocket';
 
 export interface ImageLoader {
   stop();
@@ -64,17 +64,24 @@ export class WSImageLoader implements ImageLoader {
   cb: (string) => void;
   cam_ip : string;
   cam_uid : string;
+  cam_machine_name : string;
   active = false;
   ws : any = null;
 
-  constructor(cam_ip : string, cam_uid : string, cb : (string) => void) {
+  constructor(cam_ip : string, cam_machine_name : string, cam_uid : string, cb : (string) => void) {
     this.cam_ip = cam_ip;
+    this.cam_machine_name = cam_machine_name;
     this.cam_uid = cam_uid;
     this.cb = cb;
     this.active = true;
 
-    var websocket_protocol = location.protocol=="https:" ? "wss:" : "ws:";
-    this.ws = new $WebSocket(websocket_protocol+"//"+cam_ip+":9002");
+    const webSocketConfig = {reconnectIfNotNormalClose: true} as WebSocketConfig;
+    if (location.protocol=="https:") {
+      this.ws = new $WebSocket("wss://"+cam_machine_name+":9003", null, webSocketConfig);
+    } else {
+        this.ws = new $WebSocket("ws://"+cam_ip+":9002", null, webSocketConfig);
+    }      
+
     this.ws.onMessage(
       (msg: MessageEvent)=> {
         this.cb("data:image/jpg;base64,"+msg.data);
@@ -121,6 +128,7 @@ export class ZoomViewComponent {
   public cam_unique_id : string = '';
   public cam_version : string = '';
   public cam_ip : string = '';
+  public cam_machine_name : string = '';
   public cam_rotation : number = 0;
 
   visible = false;
@@ -129,7 +137,7 @@ export class ZoomViewComponent {
 
   startImageLoader() {
 
-    this.imageLoader = new WSImageLoader(this.cam_ip, this.cam_unique_id, (url : string) => {
+    this.imageLoader = new WSImageLoader(this.cam_ip, this.cam_machine_name, this.cam_unique_id, (url : string) => {
       if (this.visible && this.imagezoom) {
         this.imagezoom.setImageSrc(url, this.cam_rotation, () => {
           // Callback when the image was used 
@@ -171,6 +179,7 @@ export class ZoomViewComponent {
     this.cam_unique_id = camera.unique_id;
     this.cam_version = camera.version;
     this.cam_ip = camera.ip_address;
+    this.cam_machine_name = camera.machine_name;
     this.cam_rotation = camera.rotation;
 
     if (this.imagezoom)
