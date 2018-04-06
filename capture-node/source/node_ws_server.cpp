@@ -42,6 +42,7 @@ context_ptr on_tls_init(websocketpp::connection_hdl)
 WSServer::WSServer(int port)
 {
     server.init_asio();
+	server.set_reuse_addr(true);
 #ifdef USE_TLS_WEBSOCKET
     server.set_tls_init_handler(&on_tls_init);
 #endif
