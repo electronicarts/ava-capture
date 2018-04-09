@@ -73,7 +73,7 @@ export class NodeLink
         this.node_ptr = node;
         this.node_ptr.camera_details.forEach(cam => {
             if (cam.unique_id in this.cache) {
-                cam.jpeg_thumbnail = cache[cam.unique_id];
+                cam.jpeg_thumbnail = this.cache[cam.unique_id];
             }
         });        
         this.camera_list = camera_list;
