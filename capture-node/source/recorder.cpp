@@ -106,8 +106,8 @@ void SimpleMovieRecorder::close_impl()
 		it->close();
 }
 
-SimpleImageRecorder::SimpleImageRecorder(const std::string& unique_name, int framerate, int width, int height, int bitcount, bool color_bayer, color_correction::rgb_color_balance bal, const std::vector<std::string>& folders)
-	: SimpleRecorder(unique_name, framerate, width, height, bitcount, folders), m_color_bayer(color_bayer), m_color_balance(bal)
+SimpleImageRecorder::SimpleImageRecorder(const std::string& unique_name, int framerate, int width, int height, int bitcount, bool color_bayer, int bayer_pattern, color_correction::rgb_color_balance bal, const std::vector<std::string>& folders)
+	: SimpleRecorder(unique_name, framerate, width, height, bitcount, folders), m_color_bayer(color_bayer), m_bayerpattern(bayer_pattern), m_color_balance(bal)
 {
 }
 
@@ -122,7 +122,7 @@ void SimpleImageRecorder::append_impl(cv::Mat img, double ts, int blacklevel)
 
 	if (m_color_bayer)
 	{
-		cv::cvtColor(img, tempImage, cv::COLOR_BayerBG2RGB);
+		cv::cvtColor(img, tempImage, m_bayerpattern);
 		color_correction::apply(tempImage, m_color_balance, blacklevel);
 	}
 

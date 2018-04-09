@@ -12,6 +12,7 @@
 #include <sstream>
 #include <vector>
 
+#include <opencv2/imgproc.hpp>
 #include <opencv2/highgui.hpp>
 
 const bool debug_msg = false;
@@ -110,7 +111,24 @@ XimeaCamera::XimeaCamera(int deviceId)
 		set_param_float(XI_PRM_LENS_APERTURE_VALUE, 5.6f); // lens defaults to f5.6
 	}
 
-	m_color_need_debayer = get_param_int(XI_PRM_COLOR_FILTER_ARRAY) > 0; // TODO Detect specific Bayer patterns
+	int color_filter = get_param_int(XI_PRM_COLOR_FILTER_ARRAY);
+
+	m_color_need_debayer = color_filter > 0;
+
+	switch (color_filter) {
+		case XI_CFA_BAYER_RGGB :
+			m_bayerpattern = cv::COLOR_BayerRG2RGB;
+			break;
+		case XI_CFA_BAYER_BGGR :
+			m_bayerpattern = cv::COLOR_BayerBG2RGB; 
+			break;
+		case XI_CFA_BAYER_GRBG :
+			m_bayerpattern = cv::COLOR_BayerGR2RGB;
+			break;
+		case XI_CFA_BAYER_GBRG :
+			m_bayerpattern = cv::COLOR_BayerGB2RGB;
+			break;	
+	}
 
 	// Default color balance for Ximea Bayer filter
 	m_color_balance.kR = 1.37f;
