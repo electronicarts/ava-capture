@@ -401,10 +401,10 @@ export class LiveCapturePage {
         this.pulse_duration = data.location.pulse_duration;
         this.external_sync = data.location.external_sync?1:0;
 
+        this.livelink.update_from_nodes(data.nodes);
+
         this.capturenodes = data.nodes;
         this.capturenodes['counter'] = this.counter++;
-
-        this.livelink.update_from_nodes(data.nodes);
 
         // Update list of unique camera models
         var updated_camera_count = 0;

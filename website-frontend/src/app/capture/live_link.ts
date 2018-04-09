@@ -10,6 +10,7 @@ export class NodeLink
     node_ptr : any = null;
     ws : any = null;
     camera_list = Array();
+    cache = {};
 
     constructor(node : any) {
         // Initialize and create one websocket
@@ -49,11 +50,14 @@ export class NodeLink
 
         // Update node data with new image
         var framerate = 0;
-        this.node_ptr.camera_details.forEach(cam => {
+        this.node_ptr.camera_details.some(cam => {
             if (cam.unique_id == unique_id) {
                 cam.jpeg_thumbnail = image_b64;
                 framerate = cam.effective_fps;
+                this.cache[cam.unique_id] = image_b64;
+                return true; // stops iterating
             }
+            return false; // continue iteration
         });
 
         // after a delay, request next image
@@ -67,6 +71,11 @@ export class NodeLink
 
     set_camera_list(node, camera_list) {
         this.node_ptr = node;
+        this.node_ptr.camera_details.forEach(cam => {
+            if (cam.unique_id in this.cache) {
+                cam.jpeg_thumbnail = cache[cam.unique_id];
+            }
+        });        
         this.camera_list = camera_list;
     }
 
