@@ -76,11 +76,13 @@ export class NodeLink
 
     set_camera_list(node, camera_list) {
         this.node_ptr = node;
-        this.node_ptr.camera_details.forEach(cam => {
-            if (cam.unique_id in this.cache) {
-                cam.jpeg_thumbnail = this.cache[cam.unique_id];
-            }
-        });        
+        if (this.node_ptr.camera_details) {
+            this.node_ptr.camera_details.forEach(cam => {
+                if (cam.unique_id in this.cache) {
+                    cam.jpeg_thumbnail = this.cache[cam.unique_id];
+                }
+            });            
+        }
         this.camera_list = camera_list;
     }
 
