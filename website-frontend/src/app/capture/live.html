@@ -96,12 +96,6 @@
     </div>
     <div class="split-columns">
       <small>
-        <select class="form-control form-control-dark" [(ngModel)]="thumbnail_preview_fps">
-          <option [value]="0.5">Preview @ 0.5 fps</option>
-          <option [value]="1">Preview @ 1 fps</option>
-          <option [value]="5">Preview @ 5 fps</option>
-          <option [value]="15">Preview @ 15 fps</option>
-        </select>
         <div>AVI:
         <select class="form-control form-control-dark" [(ngModel)]="bitdepth_avi" (ngModelChange)="onChangeLocationOption($event)">
           <option [value]="8">8</option>

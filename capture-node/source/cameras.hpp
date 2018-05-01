@@ -260,6 +260,23 @@ private:
 	boost::thread capture_thread;
 };
 
+class DummyCamera : public Camera
+{
+public:
+	DummyCamera(int id);
+
+	static std::vector<std::shared_ptr<Camera> > get_dummy_cameras(int count);
+
+protected:
+	void captureThread();
+	void start_capture() override;
+	void stop_capture() override;
+
+private:
+	int m_id;
+	boost::thread capture_thread;
+};
+
 #ifdef WITH_PORTAUDIO
 
 class AudioCamera : public Camera

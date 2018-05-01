@@ -1,6 +1,7 @@
 // Copyright (C) 2017 Electronic Arts Inc.  All rights reserved.
 
 #include "nodehttpserver.hpp"
+#include "node_ws_server.hpp"
 #include "capturenode.hpp"
 #include "server_uplink.hpp"
 #include "embedded_python.hpp"
@@ -95,6 +96,7 @@ int main(int argc, char** argv)
 		("server", po::value<std::string>()->default_value(DEFAULT_SERVER), "Server address")
 		("port", po::value<int>()->default_value(DEFAULT_PORT), "Port of the server")
 		("webcams", po::bool_switch()->default_value(false), "Initialize all available Webcams")
+		("dummy", po::bool_switch()->default_value(false), "Add dummy test camera")
 		("service", po::bool_switch()->default_value(false), "Run without the interactive prompt")
 #ifdef WITH_PORTAUDIO		
 		("audio", po::bool_switch()->default_value(false), "Initialize default audio capture device")
@@ -131,13 +133,20 @@ int main(int argc, char** argv)
 #else
 	const bool use_audio = false;
 #endif
+	const bool use_dummycam = vm["dummy"].as<bool>();
 	std::string folder = vm["folder"].as<std::string>();
 
-	std::shared_ptr<CaptureNode> node(new CaptureNode(use_webcams, use_audio, folder));
+	std::shared_ptr<CaptureNode> node(new CaptureNode(use_webcams, use_audio, use_dummycam, folder));
 
+	// HTTP Server
 	NodeHttpServer httpd(node, 8080);
 	boost::thread http_thread([&httpd]() {httpd.serve_forever(); });
 
+	// Websocker Server
+	NodeWSServer wdd(node, 9002);
+	wdd.serve_forever_in_thread();
+
+	// Up-link to server
 	ServerUplink uplink(node, vm["server"].as<std::string>().c_str(), vm["port"].as<int>(), USERNAME, PASSWORD, GIT_REVISION);
 
 	std::string global_params = uplink.sendKeepalive(true);
@@ -295,8 +304,10 @@ int main(int argc, char** argv)
 		}
 	}
 
+	// Close Webserver and Websocet Server
 	httpd.close();
 	http_thread.join();	
+	wdd.close();
 
 	if (node->shutdown_requested())
 	{
