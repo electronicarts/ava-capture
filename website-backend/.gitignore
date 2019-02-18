@@ -4,3 +4,6 @@ sqlite3.db
 sqlite3.db-journal
 ava/static/thumb/*
 !ava/static/thumb/thumbnails.txt
+env/
+dist-dev
+dist-prod

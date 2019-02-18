@@ -43,7 +43,16 @@ It is also possible to use this script to run avaCapture and allow it to update 
 
 The website is a single-page Angular application. It is compiled into a few static files that are served by the webserver (or the Django backend for development). The source code is compiled using Node.js.
 
-### Installation
+### Build Frontend (Linux using docker) (Recommended)
+
+It is possible to build the frontend in linux using a Docker container. 
+
+A script called build_with_docker.sh is provided for this purpose. It installs Node.js and NPM inside a docker container, and use it to build the frontend.
+
+Usage: build_with_docker.sh [dev|prod]
+
+
+### Build Frontend (Windows)
 
 These instructions were tested in Windows. Building the frontend in Linux with node.js is very similar.
 
@@ -81,6 +90,14 @@ The Backend can run on any web server (eg. nginx). For development purposes, it 
     python manage.py runserver 0.0.0.0:80
 
 Browse to http://<server ip>:80/static/d/index.html. The default user/password is admin/admin. The  Admin website for direct manipulation of the database is at http://<server ip>:80/admin.
+
+### Running in Linux using Python Virtual Environment (recommended)
+
+We have included a script called run_dev_webserver_venv.sh to execute Django inside a Python Virtual Environment.
+
+This script installs the requirements to set up the virtual environment, then installs the python modules inside the vend using requirements.txt
+
+Browse to the local website on http://127.0.0.1:8000/static/d/index.html. The default user/password is admin/admin. The  Admin website for direct manipulation of the database is at http://127.0.0.1:8000/admin.
 
 ### Running as a Docker container in Windows (for development)
 

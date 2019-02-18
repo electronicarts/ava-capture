@@ -3,7 +3,17 @@ Ava Capture - Website Frontend
 
 This is the Angular2 frontend for the Ava Capture website.
 
-Building
+Building in Linux with Docker (recommended)
+
+It is possible to build the frontend in linux using a Docker container. 
+
+A script called build_with_docker.sh is provided for this purpose. It installs Node.js and NPM inside a docker container, and use it to build the frontend.
+
+Usage: build_with_docker.sh [dev|prod]
+
+This generates the frontend files in /dist-dev or /dist-prod.
+
+Building in Windows
 ==
 Install
 --
