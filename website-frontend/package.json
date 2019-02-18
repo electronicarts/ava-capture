@@ -85,7 +85,6 @@
     "compression-webpack-plugin": "0.4.0",
 
     "webpack": "2.4.1",
-    "webpack-dev-server": "2.4.2",
     "webpack-merge": "^4.1.0",
 
     "angular2-websocket": "0.9.6"
