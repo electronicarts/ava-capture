@@ -9,7 +9,7 @@ django-filter==1.0.4
 django-taggit==0.22.2
 django-taggit-serializer==0.1.5
 djangorestframework==3.4.6
-djangorestframework-jwt==1.8.0
+djangorestframework-jwt==1.11.0
 python-ldap==2.4.41
 prometheus-client==0.2.0
 py-cpuinfo==0.2.3
