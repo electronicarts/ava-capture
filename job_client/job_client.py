@@ -3,6 +3,8 @@
 #
 
 from __future__ import print_function
+from future.standard_library import install_aliases
+install_aliases()
 from builtins import object
 from builtins import str
 import json
@@ -18,6 +20,7 @@ import os
 import sys
 import datetime
 from multiprocessing import Process, Pool, Pipe, Queue
+from contextlib import contextmanager
 
 import importlib
 import inspect
@@ -31,27 +34,51 @@ from jobs.credentials import DEFAULT_USERNAME, DEFAULT_PASSWORD, DEFAULT_SERVER
 
 from version import VERSION
 
+global_exit_signal = False
+
 # Unfortunatly we cannot verify certificates with this version, see https://urllib3.readthedocs.io/en/latest/user-guide.html#ssl-py2
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+
+def get_local_ip_for_server(url):
+    # Returns the IP Address of the adapter used to reach a specific URL
+    try:
+        from urllib.parse import urlparse
+        parsed_uri = urlparse(url)
+
+        import socket
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect((parsed_uri.netloc, 80))
+        local_ip = s.getsockname()[0]
+        s.close()
+        return local_ip
+    except:
+        return socket.gethostbyname(socket.gethostname())
 
 def kill_process_tree(pid, including_parent=True):
     parent = psutil.Process(pid)
     children = parent.children(recursive=True)
     for child in children:
-        child.kill()
+        try:
+            child.kill()
+        except:
+            pass # we prefer to silently ignore than to get stuck
     gone, still_alive = psutil.wait_procs(children, timeout=5)
     if including_parent:
-        parent.kill()
-        parent.wait(5)
+        try:
+            parent.kill()
+            parent.wait(5)
+        except:
+            pass # we prefer to silently ignore than to get stuck
 
 def class_from_string(name):
     return getattr(importlib.import_module('.'.join(name.split('.')[:-1])), name.split('.')[-1])
 
-def job_process(job_id, job_class, parameters, q, pipe, server_url, log_filename=None):
+def job_process(job_id, job_class, parameters, q, pipe, server_url, context, log_filename=None):
 
     logger = None
     try:
+        # Initialize log
         logger = logging.getLogger('JobProcessLogger') # TODO we may need a unique name in linux ?
         logger.setLevel(logging.DEBUG)
 
@@ -65,8 +92,8 @@ def job_process(job_id, job_class, parameters, q, pipe, server_url, log_filename
             log = open(log_filename, 'w') # Overwrite, filename should be unique
             handler = logging.StreamHandler(log)
             formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-            handler.setFormatter(formatter)   
-            handler.setLevel(logging.DEBUG)                 
+            handler.setFormatter(formatter)
+            handler.setLevel(logging.DEBUG)
             logger.addHandler(handler)
             logger.info('Launching Job #%d' % job_id)
             if parameters:
@@ -77,9 +104,11 @@ def job_process(job_id, job_class, parameters, q, pipe, server_url, log_filename
         job.server_url = server_url
         retcode = job(parameters, pipe, logger)
 
-        q.put({'job_id':job_id, 'success':True, 'retcode':retcode})
+        q.put({'job_id':job_id, 'success':True, 'retcode':retcode})        
 
         logger.info('Job Success: #%d' % job_id)
+
+        pipe.close()
 
     except YieldToChildrenException as e:
         if logger:
@@ -90,7 +119,8 @@ def job_process(job_id, job_class, parameters, q, pipe, server_url, log_filename
 
         logger.info('Job YieldToChildren: #%d' % job_id)
 
-    except Exception as e:
+    except:
+
         exception_details = traceback.format_exc()
         if logger:
             logger.error(exception_details)
@@ -103,14 +133,12 @@ def job_process(job_id, job_class, parameters, q, pipe, server_url, log_filename
         if logger:
             logger.handlers = []
 
-    pipe.close()
-
 class JobInstance(object):
 
     def __str__(self):
         return 'Job #%d %s' % (self.job_id, self.status)
 
-    def __init__(self, params, job_class, server_url, job_id=0, log_filename=None):
+    def __init__(self, params, job_class, server_url, context, job_id=0, log_filename=None):
         self.parameters = params
         self.server_url = server_url
         self.job_class = job_class
@@ -121,6 +149,7 @@ class JobInstance(object):
         self.status = ''
         self.p = None
         self.terminated = False
+        self.context = context
 
         try:
             if isinstance(job_class, str) or isinstance(job_class.decode(), str):
@@ -147,24 +176,28 @@ class JobInstance(object):
             if self.p:
                 if not self.p.is_alive():
                     return
-                self.terminated = True
                 kill_process_tree(self.p.pid, True)
         except Exception as e:
-            print('Could not terminate job #%d : %s' % (self.job_id, e))
+            print('Could not terminate job cleanly #%d : %s' % (self.job_id, e))
+        finally:
+            self.terminated = True                
+
 
     def blocking_run(self):
         parent_conn, child_conn = Pipe()
         q = Queue()
-        self.p = Process(target=job_process, args=(self.job_id, self.job_class, self.parameters, q, child_conn, self.server_url, self.log_filename, ))
+        self.p = Process(target=job_process, 
+            args=(self.job_id, self.job_class, self.parameters, q, child_conn, self.server_url, self.context, self.log_filename, ))
         self.p.start()
-        while self.p.is_alive():
+        while self.p.is_alive() and not self.terminated:
             while parent_conn.poll():
                 self.output_received_from_job(parent_conn.recv())
             time.sleep(1)
         self.p.join()
         try:
             while parent_conn.poll():
-                self.output_received_from_job(parent_conn.recv())
+                msg = parent_conn.recv()
+                self.output_received_from_job(msg)
         except:
             print('Exception while gathering job process output')
 
@@ -187,11 +220,12 @@ class JobInstance(object):
         return self.result
 
 class JobContainer(object):
-    def __init__(self, log_folder, server_url):
+    def __init__(self, log_folder, server_url, context):
         self.log_folder = log_folder
         self.server_url = server_url
         self.running_jobs = {}
         self.finished_jobs = {}
+        self.context = context
 
         if not os.path.exists(self.log_folder):
             os.makedirs(self.log_folder)
@@ -217,7 +251,7 @@ class JobContainer(object):
             '%s__%d__%s.txt' % (job_class.replace('.','_'), job_id, datetime.datetime.now().strftime('%Y%m%d_%H%M%S')))
 
         # Launch Thread to run this JobInstance
-        j = JobInstance(params, job_class, server_url=self.server_url, job_id=job_id, log_filename=log_filename)
+        j = JobInstance(params, job_class, server_url=self.server_url, context=self.context, job_id=job_id, log_filename=log_filename)
         t = Thread(target=self.wrapper, args=(job_id, j))
         self.running_jobs[job_id] = (t,j)
         t.start()
@@ -238,7 +272,7 @@ class JobClient(object):
     LOG_FOLDER = os.path.abspath('logs')
     PHONEHOME_DELAY = 4 # seconds
 
-    def __init__(self, server, git_version):
+    def __init__(self, server, git_version, tags):
 
         print('Logs will be written to %s' % self.LOG_FOLDER)
 
@@ -251,32 +285,33 @@ class JobClient(object):
         self.log_folder = self.LOG_FOLDER
         self.server = server
         self.hostname = socket.gethostname()
-        self.ip = socket.gethostbyname(socket.gethostname())
-        self.container = JobContainer(self.log_folder, server)
+        self.ip = get_local_ip_for_server(server)
         self.status_changed = True
         self.info = cpuinfo.get_cpu_info()
         self.s = requests.Session()
         self.first_update = True
         self.need_restart = False
         self.cpu_percent = 0.0
+        self.mem_used = 0.0
         self.git_version = git_version
+        self.tags = tags if tags else []
 
         # Log File Logger
         self.logger = logging.getLogger('JobClientLogger')
         self.logger.setLevel(logging.DEBUG)
         handler = logging.FileHandler(os.path.join(self.log_folder, 'JobClient.log'))
         formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-        handler.setFormatter(formatter)            
+        handler.setFormatter(formatter)
         self.logger.addHandler(handler)
 
         # Console handler
         ch = logging.StreamHandler()
-        ch.setLevel(logging.INFO)        
+        ch.setLevel(logging.INFO)
         self.logger.addHandler(ch)
-        
+
         self.logger.info('Launching JobClient (Code Version %d)' % VERSION)
 
-        try:  
+        try:
             import vhtrack
             self.cuda_device_count = vhtrack.query_cuda_device_count()
             if self.cuda_device_count > 0:
@@ -293,18 +328,41 @@ class JobClient(object):
         except:
             self.cuda_device_count = 0
         
-        if self.cuda_device_count == 0:
+        if self.cuda_device_count > 0:
+            self.tags.append('gpu')
+        else:
             self.logger.info('No CUDA GPU Detected')
+
+        self.tags.append('py%d%d' % (sys.version_info.major, sys.version_info.minor))
+
+        self.context = {}
+        self.context['user'] = {
+            'git_version': self.git_version,
+            'server': self.server,
+            'hostname': self.hostname,
+            'ip_address': self.ip,            
+            'cpu_brand' : self.info['brand'],
+            'cpu_cores' : self.info['count'],
+            'cuda_device_count' : self.cuda_device_count,
+            'client_tags' : self.tags            
+        }
+        self.context['tags'] = {
+            'system' : platform.system(),
+            'python_version' : platform.python_version()
+        }
+
+        self.container = JobContainer(self.log_folder, server, self.context)
 
         self.available_job_classes = create_available_job_list(self.logger)
 
     def notify_exit(self):
+        print('Attempting graceful exit....')
         payload = {
             'machine_name': self.hostname, 
             'ip_address': self.ip,
             'status': 'offline'
             }
-        r = self.s.post('%s/jobs/client_discover/' % self.server, json=payload, auth=(self.USERNAME, self.PASSWORD), verify=False)        
+        r = self.s.post('%s/jobs/client_discover/' % self.server, json=payload, auth=(self.USERNAME, self.PASSWORD), verify=False)
 
     def phone_home(self):
 
@@ -324,7 +382,9 @@ class JobClient(object):
             'cuda_device_count' : self.cuda_device_count,
             'available_jobs' : self.available_job_classes,
             'cpu_percent' : self.cpu_percent,
-            'git_version' : self.git_version
+            'mem_used' : self.mem_used,
+            'git_version' : self.git_version,
+            'client_tags' : self.tags
             }
 
         for j in payload['finished_jobs']:
@@ -366,14 +426,15 @@ class JobClient(object):
 
     def loop_forever(self):
         try:
-            while 1:
+            print('Waiting for jobs...')
+            while not global_exit_signal:
                 try:
                     self.status_changed = False
                     self.phone_home()
 
                 except Exception as e:
                     self.logger.error('Failed to contact server. %s' % e)
-                
+
                 if self.need_restart and not self.container.running_jobs and not self.container.finished_jobs:
                     print('Restarting...')
                     # End current process and launch a new one with the same command line parameters
@@ -382,12 +443,12 @@ class JobClient(object):
 
                 if not self.status_changed:
                     self.cpu_percent = psutil.cpu_percent(interval=self.PHONEHOME_DELAY)
+                    self.mem_used = psutil.virtual_memory().percent
 
         except KeyboardInterrupt:
             pass
         finally:
-            print('Exiting...')
-            self.notify_exit()
+           self.notify_exit()
 
 class SingleInstance(object):
     def __init__(self, name):
@@ -430,9 +491,19 @@ class SingleInstance(object):
                 fcntl.lockf(self.fp, fcntl.LOCK_UN)
                 # os.close(self.fp)
                 if os.path.isfile(self.lock_file):
-                    os.unlink(self.lock_file)        
+                    os.unlink(self.lock_file)
 
-def create_available_job_list(logger):            
+# To use with statement below - make sure __init__ and __del__ above are always called
+@contextmanager
+def make_single_instance(name):
+    si = None
+    try:
+        si = SingleInstance(name)
+        yield
+    finally:
+        del si
+
+def create_available_job_list(logger):
     # Make list of available Job classes
     import sys, inspect
     avalable_job_classes = []
@@ -455,21 +526,38 @@ def create_available_job_list(logger):
             job_class_names.append(class_name)
             print(' OK %s' % c)
         except Exception as e:
-            print(' Not Available: %s (%s)' % (c,e.message))
-    return job_class_names                   
+            print(' Not Available: %s (%s)' % (c,str(e)))
+    return job_class_names
 
 if __name__ == "__main__":
+    import multiprocessing
+    if hasattr(multiprocessing, 'set_start_method'):
+        multiprocessing.set_start_method('spawn')
 
-    single_instance = SingleInstance('AvaJobClient')
+    with make_single_instance('AvaJobClient'):
 
-    parser = argparse.ArgumentParser(description='Launch Job Client')
-    parser.add_argument('server', nargs='?', type=str, help='Http URL of Server, default is %s' % DEFAULT_SERVER, default=DEFAULT_SERVER)
-    parser.add_argument('--git-version', dest='version', nargs='?', type=str, help='Git Version description', default='unknown')
+        # Workaround for crash in windows when user presses Ctrl-C
+        # forrtl: error (200): program aborting due to control-C event
+        if sys.platform == 'win32':
+            try:
+                import win32api # pip install pywin32
+                def consoleCtrlHandler(sig, func=None):
+                    print('Caught CTRL-C, exiting...')
+                    global global_exit_signal
+                    global_exit_signal = True
+                    return True
+                win32api.SetConsoleCtrlHandler(consoleCtrlHandler, 1)
+            except:
+                print('Missing pywin32')
 
-    args = parser.parse_args()
+        parser = argparse.ArgumentParser(description='Launch Job Client')
+        parser.add_argument('server', nargs='?', type=str, help='Http URL of Server, default is %s' % DEFAULT_SERVER, default=DEFAULT_SERVER)
+        parser.add_argument('--git-version', dest='version', nargs='?', type=str, help='Git Version description', default='unknown')
+        parser.add_argument('--tag', action='append')
 
-    print('Job Client Running (%s) ... Press Ctrl-C to stop' % args.server)
+        args = parser.parse_args()
 
-    client = JobClient(args.server, args.version)
-    client.loop_forever()
+        print('Job Client Running (%s) ... Press Ctrl-C to stop' % args.server)
 
+        client = JobClient(args.server, args.version, args.tag)
+        client.loop_forever()

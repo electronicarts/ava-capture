@@ -22,6 +22,11 @@ Capture Node:
    - Fixed broken ROI 
    - Automatically apply gain on ximea xiC cameras when using 10/12 bits to fix difference in brightness
 
+Ava Job Client
+
+   - Various improvements and bug fixes in core job client
+   - Display progress with ETA when exporting files
+
 Ava Server Frontend
 
     - Link to download the image in recording summary

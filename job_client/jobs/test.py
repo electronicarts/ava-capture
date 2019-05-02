@@ -2,13 +2,19 @@
 # Copyright (c) 2017 Electronic Arts Inc. All Rights Reserved 
 #
 
-from base import BaseJob
+from __future__ import print_function
+from __future__ import absolute_import
+
+from builtins import object
+from .base import BaseJob
 
 import time
 import subprocess
 import logging
+import json
+import os
 
-class JobTestFixture:
+class JobTestFixture(object):
     def __init__(self):
         FORMAT = "[MAIN] %(message)s"
         logging.basicConfig(format=FORMAT)
@@ -18,7 +24,7 @@ class JobTestFixture:
         ch.setLevel(logging.DEBUG)
         class MockPipe(object):
             def send(self,str):
-                print 'PIPE> %s' % str
+                print('PIPE> %s' % str)
         self.pipe = MockPipe()
 
     def __call__(self, job, parameters):
@@ -34,17 +40,47 @@ class DummyJob(BaseJob):
         time.sleep(0.3)
         pipe.send('Progress 100%')
 
-    class Meta:
+    class Meta(object):
+        description = 'This is a test Job'
+
+class DummyJobLaunch(BaseJob):
+    def __call__(self, parameters, pipe, log):
+        pipe.send('Launch new job')
+        new_job_id = self.launch_job('jobs.test.DummyJob', tags=['alpha','bravo'])
+        pipe.send('Launched %d' % new_job_id)
+
+    class Meta(object):
+        description = 'This is a test Job'
+
+class DummyJobWithImage(BaseJob):
+    def __call__(self, parameters, pipe, log):
+        
+        import cv2
+        import numpy as np
+
+        height = 512
+        width = 512
+
+        img = np.zeros((height,width,3), np.uint8)
+        img[:,0:int(0.5*width)] = (255,0,0)      # (B, G, R)
+        img[:,int(0.5*width):width] = (0,255,0)
+
+        pipe.send('Uploading JPG thumbnail...')
+
+        self.set_job_image(img)
+
+
+    class Meta(object):
         description = 'This is a test Job'
 
 class HttpTestJob(BaseJob):
     def __call__(self, parameters, pipe, log):
         r = self.server_get('/archive/archive_session/3/', json={'asdf':'asdf'})
-        print r.status_code
+        print(r.status_code)
         if not r.status_code==200:
             raise Exception('Status:%d Content:%s' % (r.status_code, r.content))
 
-    class Meta:
+    class Meta(object):
         description = 'This is a test Job'
 
 class DummyJobWithChildren(BaseJob):
@@ -61,7 +97,7 @@ class DummyJobWithChildren(BaseJob):
 
         # anything after yieldToChildren will not be executed
 
-    class Meta:
+    class Meta(object):
         description = 'This is a test Job With Children'
 
 class DummyJobWithLog(BaseJob):
@@ -70,7 +106,7 @@ class DummyJobWithLog(BaseJob):
         log.warning('DummyJobWithLog warning')
         log.info('End DummyJobWithLog')
 
-    class Meta:
+    class Meta(object):
         description = 'This is a test Job'
 
 class DummyJobRaisingException(BaseJob):
@@ -80,7 +116,7 @@ class DummyJobRaisingException(BaseJob):
         raise Exception('This job is raising an exception')
         pipe.send('After Exception')
 
-    class Meta:
+    class Meta(object):
         description = 'This is a test Job, which raises an Exception'
 
 class DummyJobSubprocess(BaseJob):
@@ -96,7 +132,7 @@ class DummyJobSubprocess(BaseJob):
         # The prefered method is to use run_subprocess()
         subprocess.check_output(["ipconfig", "/all"])
 
-    class Meta:
+    class Meta(object):
         description = 'This is a test Job, launching a subprocess'
 
 class DummyJobSubprocessFail(BaseJob):
@@ -106,7 +142,7 @@ class DummyJobSubprocessFail(BaseJob):
         # The prefered method is to use run_subprocess()
         subprocess.check_output("exit 1", shell=True)
 
-    class Meta:
+    class Meta(object):
         description = 'This is a test Job, launching a subprocess'
 
 class DummyJobSubprocessCaptureSmallOutput(BaseJob):
@@ -118,9 +154,9 @@ class DummyJobSubprocessCaptureSmallOutput(BaseJob):
         p = subprocess.Popen(["ipconfig", "/all"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         stdout, stderr = p.communicate()
         if stdout:
-            log.info(stdout)
+            log.info(stdout.decode())
         if stderr:
-            log.error(stderr)
+            log.error(stderr.decode())
 
 class DummyJobSubprocessCaptureOutput(BaseJob):
     def __call__(self, parameters, pipe, log):
@@ -130,7 +166,7 @@ class DummyJobSubprocessCaptureOutput(BaseJob):
         if not retcode==0:
             raise Exception('Expecting retcode=0')
 
-    class Meta:
+    class Meta(object):
         description = 'This is a test Job, launching a subprocess'
 
 class DummyJobSubprocessCaptureOutputFail(BaseJob):
@@ -138,14 +174,9 @@ class DummyJobSubprocessCaptureOutputFail(BaseJob):
 
         self.run_subprocess(["ipkasdjhfgak"], log)
 
-    class Meta:
+    class Meta(object):
         description = 'This is a test Job, launching a subprocess that doesnt exist'
 
-class DummyJobVH27(BaseJob):
-    def __call__(self, parameters, pipe, log):
-        pipe.send('Importing modules')
-        import numpy
-        import cv2
 
-    class Meta:
-        description = 'To test importing our modules, from vh27 and vhcommand'
+    class Meta(object):
+        description = 'Test transfer speed to a fileserver'

@@ -7,6 +7,6 @@ numpy==1.13.1
 opencv-python==3.3.0.10
 psutil==5.3.1
 py-cpuinfo==3.3.0
-requests>=2.20.0
-urllib3>=1.23
+requests==2.18.4
+urllib3==1.22
 pathlib==1.0.1
