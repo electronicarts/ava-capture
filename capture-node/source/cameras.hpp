@@ -19,6 +19,8 @@
 class Recorder;
 
 struct CameraParameter {
+	CameraParameter(float val) : last_value(val), minimum(0), maximum(0), increment(0) {}
+	CameraParameter() : last_value(0), minimum(0), maximum(0), increment(0) {}
 	float last_value;
 	float minimum;
 	float maximum;
@@ -99,9 +101,12 @@ public:
 	}
 	virtual void param_set(const char * name, float value) {
 		// Sets the value of this parameter on the camera
+		m_params[name] = CameraParameter(value);
 	}
 	virtual float param_get(const char * name) {
 		// Reads the value of this parameter on the camera
+		if (m_params.count(name)>0)
+			return m_params[name].last_value;
 		return 0.0f;
 	}
 
@@ -164,6 +169,10 @@ public:
 	void software_trigger() { m_waiting_for_trigger_hold = false;  m_waiting_for_trigger = false; }
 	void remove_recording_hold();
 
+	void updateColorBalance(double r, double g, double b);
+
+	void set_record_as_raw(bool raw) {m_record_as_raw = raw;}
+
 	shared_json_doc last_summary() { return m_last_summary; }
 
 	bool m_debug_in_capture_cycle;
@@ -206,6 +215,8 @@ protected:
 	int m_record_frames_remaining;
 	int m_image_counter;
 
+	bool m_record_as_raw;
+
 	double m_start_ts;
 	double m_last_ts;
 	double m_waiting_delay;
@@ -229,6 +240,7 @@ protected:
 	// Store first frame of each recording
 	cv::Mat recording_first_frame;
 	int recording_first_frame_black_level;
+	int recording_first_frame_index;
 
 	shared_json_doc m_last_summary;
 

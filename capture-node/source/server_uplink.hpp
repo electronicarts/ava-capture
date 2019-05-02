@@ -16,6 +16,8 @@ public:
 
 	std::string sendKeepalive(bool request_params=false);
 
+	bool isConnected() const {return running;}
+
 private:
 	bool running;
 	void uplinkThread();

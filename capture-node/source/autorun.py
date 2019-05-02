@@ -2,10 +2,10 @@
 
 import sys
 import os
+import subprocess
 site_packages_path = os.path.join(os.path.split(__file__)[0], 'site-packages')
 if os.path.exists(site_packages_path):
     sys.path.append(site_packages_path)
-
 
 import hardware_sync
 import avacapture
@@ -18,8 +18,15 @@ if port:
 		avacapture.set_sync(sync)
 
 
-# These features should be available in Python:
-#  - Set Lighting environment
+# Notification Listener will recieve events from avacapture
+class DefaultNotificationListener():
+	def __init__(self):
+		pass
+	def receiveMessage(self, message):
+		#print "PYTHON> TODO Receive Generic Message : %s" % message
+		pass
+	def changeState(self, state):
+		#print "PYTHON> TODO Listener Change State : %s" % state
+		pass
 
-
-
+avacapture.add_listener(DefaultNotificationListener())

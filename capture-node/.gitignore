@@ -17,3 +17,7 @@ ximeaTest
 
 # Generated file
 source/build_generated.h
+
+# Logs
+avaCapture.log
+mount_drives.log

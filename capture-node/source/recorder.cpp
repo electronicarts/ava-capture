@@ -1,7 +1,6 @@
 // Copyright (C) 2017 Electronic Arts Inc.  All rights reserved.
 
 #include "recorder.hpp"
-#include "video_encoder.hpp"
 #include "cameras.hpp"
 #include "color_correction.hpp"
 
@@ -14,6 +13,113 @@
 
 #include <fstream>
 #include <algorithm>
+
+#include <boost/asio.hpp>
+
+#include <tbb/pipeline.h>
+
+#include "video_writer_avi.hpp"
+#include "video_writer_ava.hpp"
+
+void writeTIF(const FrameToWrite* frame, 
+	int m_bitcount, bool m_color_bayer, int m_bayerpattern, color_correction::rgb_color_balance& m_color_balance)
+{
+	cv::Mat tempImage = frame->img;
+
+	if (m_color_bayer)
+	{
+		int black = frame->blacklevel;
+		int top_padd_bits = 2; // padding at MSB of 16 bit range
+		int shift_bits = 16 - m_bitcount - top_padd_bits;
+
+		// COLOR Image
+
+		cv::cvtColor(frame->img, tempImage, m_bayerpattern);
+
+		// Color correction is always applied in 16 bit (8 bit images are converted to 16 bit)
+		// Also move 8 bits to MSB in the 16bit word
+		if (m_bitcount == 8)
+		{
+			black = black << shift_bits;
+			tempImage.convertTo(tempImage, CV_16U, float(1 << (shift_bits)));
+		}
+		// Move 10-12 bits to MSB in the 16bit word
+		else
+		{
+			black = black << shift_bits;
+			tempImage = tempImage * (1 << (shift_bits)); // 10,12,14 bit images need to be scaled up to 16 bit value range	
+		}
+
+		color_correction::apply(tempImage, m_color_balance, black);
+	}
+	else
+	{
+		// GRAYSCALE Image (or color native)
+
+		if (m_bitcount>8)
+			tempImage = tempImage * (1 << (16 - m_bitcount)); // 10,12,14 bit images need to be scaled up to 16 bit value range	
+	}
+
+
+	//color_correction::linear_to_sRGB(tempImage);
+		
+	cv::imwrite(frame->filename, tempImage);
+}
+
+void writeRAW(const FrameToWrite* frame, 
+	int m_bitcount, bool m_color_bayer, int m_bayerpattern, color_correction::rgb_color_balance& m_color_balance)
+{
+	struct raw_info {
+		unsigned char magic; // 0xED
+		unsigned char version; // 1
+		unsigned char channels; // 1 or 3
+		unsigned char bitcount; // 8..16
+		unsigned int width;
+		unsigned int height;
+		unsigned int blacklevel;
+		unsigned char bayer0; // first row, first pixel
+		unsigned char bayer1; // first row, second pixel
+		unsigned char bayer2; // second row, first pixel
+		unsigned char bayer3; // second row, second pixel
+		float kR;
+		float kG;
+		float kB;
+	};
+
+	raw_info info;
+	memset(&info, 0, sizeof(info));
+	info.magic = 0xED;
+	info.version = 1;
+	info.channels = frame->img.channels();
+	info.bitcount = m_bitcount;
+	info.width = frame->img.cols;
+	info.height = frame->img.rows;
+	info.blacklevel = frame->blacklevel;
+	if (m_color_bayer)
+	{
+		switch (m_bayerpattern) {
+			case cv::COLOR_BayerRG2RGB: info.bayer0 = 'B'; info.bayer1 = 'G'; info.bayer2 = 'G'; info.bayer3 = 'R'; break;
+			case cv::COLOR_BayerBG2RGB: info.bayer0 = 'R'; info.bayer1 = 'G'; info.bayer2 = 'G'; info.bayer3 = 'B'; break;
+			case cv::COLOR_BayerGR2RGB: info.bayer0 = 'G'; info.bayer1 = 'B'; info.bayer2 = 'R'; info.bayer3 = 'G'; break;
+			case cv::COLOR_BayerGB2RGB: info.bayer0 = 'G'; info.bayer1 = 'R'; info.bayer2 = 'B'; info.bayer3 = 'G'; break;
+			default: info.bayer0 = ' '; info.bayer1 = ' '; info.bayer2 = ' '; info.bayer3 = ' '; break;
+		}
+		info.kR = m_color_balance.kR;
+		info.kG = m_color_balance.kG;
+		info.kB = m_color_balance.kB;
+	}
+
+	// Create RAW file
+	std::ofstream f(frame->filename);
+
+	// Our RAW format is actually a TIF file, followed by our information block
+	std::vector<unsigned char> buf;
+	if (cv::imencode(".tif", frame->img, buf))
+		f.write((const char *)&buf[0], buf.size());
+
+	// Append our RAW Info at the end of the file
+	f.write((const char *)&info, sizeof(info));
+}
 
 Recorder::Recorder(int framerate, int width, int height, int bitcount, const std::vector<std::string>& folders)
 	: m_frame_count(0), m_framerate(framerate), m_closed(false), m_folders(folders), m_width(width), m_height(height), m_bitcount(bitcount), m_first_ts(0.0), m_last_ts(0.0)
@@ -60,21 +166,41 @@ SimpleRecorder::SimpleRecorder(const std::string& unique_name, int framerate, in
 {
 }
 
-SimpleMovieRecorder::SimpleMovieRecorder(const std::string& unique_name, int framerate, int width, int height, int bitcount, const std::vector<std::string>& folders)
+SimpleMovieRecorder::SimpleMovieRecorder(const std::string& unique_name, int framerate, int width, int height, int bitcount, 
+	bool color_bayer, int bayer_pattern, color_correction::rgb_color_balance bal,
+	const std::vector<std::string>& folders, bool use_ava_format)
 	: SimpleRecorder(unique_name, framerate, width, height, bitcount, folders)
 {
 	namespace fs = boost::filesystem;
 
-	int index = 0;
-	for (auto folder : m_folders)
+	if (use_ava_format)
 	{
-		fs::path filename = fs::path(m_folders[index % m_folders.size()]) / (boost::format("%s_%03d.avi") % m_unique_name % index).str();
+		// AvaVideoWriter
+
+		fs::path filename = fs::path(m_folders[0]) / (boost::format("%s.ava") % m_unique_name).str();
 		m_filenames.push_back(filename.string());
-
-		std::unique_ptr<VideoWriter> writer(new VideoWriter(filename.string().c_str(), framerate, width, height, bitcount));
+		std::unique_ptr<VideoWriter> writer(new AvaVideoWriter(filename.string().c_str(), 
+			framerate, width, height, bitcount, 
+			color_bayer, bayer_pattern, bal));
 		m_writers.push_back(std::move(writer));
+	}
+	else
+	{
+		// AviVideoWriter
 
-		index++;
+		int index = 0;
+		for (auto folder : m_folders)
+		{
+			fs::path filename = fs::path(m_folders[index % m_folders.size()]) / (boost::format("%s_%03d.avi") % m_unique_name % index).str();
+			m_filenames.push_back(filename.string());
+
+			//printf("DEBUG Record AVI format to %s\n", filename.string().c_str());
+
+			std::unique_ptr<VideoWriter> writer(new AviVideoWriter(filename.string().c_str(), framerate, width, height, bitcount));
+			m_writers.push_back(std::move(writer));
+
+			index++;
+		}
 	}
 }
 
@@ -89,10 +215,12 @@ int SimpleMovieRecorder::buffers_used(int type) const
 void SimpleMovieRecorder::append_impl(cv::Mat img, double ts, int blacklevel)
 {
 	cv::Mat tempImage = img;
+
+	// TODO Is this still true ? why not do this in post... ?
 	if (m_bitcount>8)
 		tempImage = img * (1 << (16 - m_bitcount)); // 10,12,14 bit images need to be scaled up to 16 bit value range
 
-	if (!m_writers[m_frame_count % m_writers.size()]->addFrame(tempImage))
+	if (!m_writers[m_frame_count % m_writers.size()]->addFrame(tempImage, ts))
 		m_dropped_frames++;
 
 	Recorder::append_impl(img, ts, blacklevel);
@@ -106,41 +234,70 @@ void SimpleMovieRecorder::close_impl()
 		it->close();
 }
 
-SimpleImageRecorder::SimpleImageRecorder(const std::string& unique_name, int framerate, int width, int height, int bitcount, bool color_bayer, int bayer_pattern, color_correction::rgb_color_balance bal, const std::vector<std::string>& folders)
-	: SimpleRecorder(unique_name, framerate, width, height, bitcount, folders), m_color_bayer(color_bayer), m_bayerpattern(bayer_pattern), m_color_balance(bal)
+SimpleImageRecorder::SimpleImageRecorder(const std::string& unique_name, int framerate, int width, int height, int bitcount, bool color_bayer, int bayer_pattern, color_correction::rgb_color_balance bal, const std::vector<std::string>& folders, bool output_raw)
+	: SimpleRecorder(unique_name, framerate, width, height, bitcount, folders), 
+	m_color_bayer(color_bayer), m_bayerpattern(bayer_pattern), m_color_balance(bal), 
+	m_output_raw(output_raw), m_extension(output_raw?"raw":"tif")
 {
+	m_frame_queue.set_capacity(30);
+
+	// Run TBB Pipeline in a thread
+	pipeline_thread = boost::thread([this]() {
+
+		// Prepare TBB Pipeline to encode and write frames
+		tbb::filter_t<void,FrameToWrite*> f1(tbb::filter::serial_in_order, [this](tbb::flow_control& fc) -> FrameToWrite* {
+				// Consume m_frame_queue
+				FrameToWrite* frame = 0;
+				m_frame_queue.pop(frame);
+				if (!frame)
+				{
+					fc.stop();
+					return nullptr;
+				}
+
+				return frame;
+			});
+		tbb::filter_t<FrameToWrite*,void> f2(tbb::filter::parallel, [this](FrameToWrite * frame){
+		
+				if (m_output_raw)
+					writeRAW(frame, m_bitcount, m_color_bayer, m_bayerpattern, m_color_balance);
+				else
+					writeTIF(frame, m_bitcount, m_color_bayer, m_bayerpattern, m_color_balance);
+
+				delete frame;
+
+			});
+
+     	tbb::filter_t<void,void> f = f1 & f2;
+     	tbb::parallel_pipeline(32,f);		
+	});
 }
 
 void SimpleImageRecorder::append_impl(cv::Mat img, double ts, int blacklevel)
 {
 	namespace fs = boost::filesystem;
-	fs::path filename = fs::path(m_folders[0]) / (boost::format("%s_%04i.tif") % m_unique_name % m_frame_count).str();
+	fs::path filename = fs::path(m_folders[m_frame_count%m_folders.size()]) / (boost::format("%s_%04i.%s") % m_unique_name % m_frame_count % m_extension).str();
 
 	m_filenames.push_back(filename.string());
 
-	cv::Mat tempImage = img;
-
-	if (m_color_bayer)
+	// Add to writing queue
 	{
-		cv::cvtColor(img, tempImage, m_bayerpattern);
-		color_correction::apply(tempImage, m_color_balance, blacklevel);
+		FrameToWrite* frame = new FrameToWrite();
+		frame->img = img.clone();
+		frame->filename = filename.string();
+		frame->blacklevel = blacklevel;
+		m_frame_queue.push(frame); // blocking push
 	}
-
-	if (m_bitcount>8)
-		tempImage = tempImage * (1 << (16 - m_bitcount)); // 10,12,14 bit images need to be scaled up to 16 bit value range	
-
-	if (!(m_color_bayer || m_bitcount>8)) // if the image was not already copied due to post processing
-		tempImage = img.clone();
-
-	//color_correction::linear_to_sRGB(tempImage); // TODO we should not do this for 8 bit, but then the image file should know it is linear
-
-	cv::imwrite(filename.string(), tempImage);
 
 	Recorder::append_impl(img, ts, blacklevel);
 }
 
 void SimpleImageRecorder::close_impl()
 {
+	// Wait for queue to finish processing
+	m_frame_queue.push(0);
+	pipeline_thread.join();
+
 	Recorder::close_impl();
 }
 
@@ -184,6 +341,8 @@ void MetadataRecorder::close_impl()
 			stream << "Folder: " << boost::algorithm::join(m_folders, ",") << std::endl;
 			stream << "Framerate: " << m_framerate << std::endl;
 
+			stream << "Machine: " << boost::asio::ip::host_name() << std::endl;
+			stream << "Model: " << m_camera->model() << std::endl;
 			stream << "Width: " << m_width << std::endl;
 			stream << "Height: " << m_height << std::endl;
 			stream << "Bit Depth: " << m_bitcount << std::endl;

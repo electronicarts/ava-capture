@@ -7,6 +7,4 @@
 
 size_t get_drive_speed(const std::string& folder);
 
-#ifdef WIN32
 std::vector<std::pair<std::string, size_t> > get_recording_folder_list();
-#endif

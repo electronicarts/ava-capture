@@ -4,6 +4,15 @@
 
 #include <memory>
 #include <string>
+#include <vector>
+
+class INotificationListener
+{
+public:
+	virtual ~INotificationListener() {}
+	virtual void changeState(const char * state) const = 0;
+	virtual void receiveMessage(const char * msg) const = 0;
+};
 
 class PythonEngine
 {
@@ -17,6 +26,7 @@ public:
 
 	// Global handlers, can be initialized before CaptureNode
 	std::shared_ptr<class IHardwareSync> m_sync;
+	std::vector<std::shared_ptr<class INotificationListener> > m_notification_listeners;
 
 protected:
 	PythonEngine();

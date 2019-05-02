@@ -21,6 +21,7 @@ protected:
 	std::string getCamerasPage(std::shared_ptr<Session> request);
 	std::string getCameraPage(std::shared_ptr<Session> request, const std::vector<std::string>& paths);
 	std::string postParameterSet(std::shared_ptr<Session> request, const std::vector<std::string>& paths);
+	std::string getDirectDownload(std::shared_ptr<Session> request);
 
 private:
 	std::shared_ptr<CaptureNode> m_node;

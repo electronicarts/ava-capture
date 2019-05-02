@@ -9,6 +9,7 @@
 #include "json.hpp"
 
 #include <boost/algorithm/string.hpp>
+#include <boost/filesystem.hpp>
 
 #include <iostream>
 
@@ -269,6 +270,74 @@ std::string NodeHttpServer::postParameterSet(std::shared_ptr<Session> request, c
 	return ssOut.str();
 }
 
+std::string NodeHttpServer::getDirectDownload(std::shared_ptr<Session> session)
+{
+	namespace fs = boost::filesystem;
+	
+	// TODO This is not very safe, need validation on the path
+	// TODO Handle other file types than TIF
+
+	try
+	{
+		// Get filename from json parameters
+		rapidjson::Document d;
+		d.Parse(session->request.content.c_str());
+		if (!d.HasMember("folder") || !d.HasMember("unique_id") || !d.HasMember("frame_index"))
+			return error500();
+
+		std::string folder = d["folder"].GetString();
+		std::string unique_id = d["unique_id"].GetString();
+		int index = d["frame_index"].GetInt();
+		std::string extension = "tif";
+
+		if (d.HasMember("extension"))
+			extension = d["extension"].GetString();
+
+		std::stringstream ss;
+		ss << unique_id << "_" << std::setfill('0') << std::setw(4) << index << "." << extension;
+		
+		std::string basename = ss.str();
+		fs::path filename = fs::path(folder) / basename;
+
+		std::cout << filename.string() << std::endl;
+
+		// Open file and get size
+		std::ifstream file(filename.string(), std::ios::binary | std::ios::ate);
+		if (!file.is_open())
+			return error404();
+		std::streamsize size = file.tellg();
+		file.seekg(0, std::ios::beg);
+
+		// Read entire file in memory
+		std::vector<char> buf(size);
+		if (file.read(buf.data(), size))
+		{
+			std::stringstream ssOut;
+
+			ssOut << "HTTP/1.1 200 OK" << std::endl;
+			ssOut << "Content-Type: image/tif" << std::endl;
+			ssOut << "Content-Disposition: inline; filename=\"" + basename + "\"" << std::endl;
+			ssOut << "Content-Length: " << buf.size() << std::endl;
+
+			// Browsers should not cache this image, since this is the live feed from the camera
+			ssOut << "Cache-Control: no-cache, no-store, must-revalidate" << std::endl;
+			ssOut << "Pragma: no-cache" << std::endl;
+			ssOut << "Expires: 0" << std::endl;
+
+			ssOut << std::endl;
+			ssOut.write(reinterpret_cast<char *>(&buf[0]), buf.size());
+
+			return ssOut.str();
+		}
+	}
+	catch (...)
+	{
+		return error500();
+	}
+
+	return error500();
+}
+
 std::string NodeHttpServer::getCameraPage(std::shared_ptr<Session> request, const std::vector<std::string>& paths)
 {
 	if (paths.size() < 3)
@@ -390,6 +459,9 @@ std::string NodeHttpServer::handleRequest(std::shared_ptr<Session> session)
 	}
 	else if (session->request.method == "POST")
 	{
+		if (paths.size()>0 && paths[0] == "download")
+			return getDirectDownload(session);
+
 		if (paths.size() > 0 && paths[0] == "close_node")
 		{
 			m_node->shutdown();
@@ -399,32 +471,58 @@ std::string NodeHttpServer::handleRequest(std::shared_ptr<Session> session)
 		else if (paths.size() == 3 && paths[0] == "camera" && paths[2] == "roi")
 		{
 			// Special case for Parameter ROI
-
 			std::string req_cam_id = paths[1];
-			auto cam = m_node->cameraById(req_cam_id.c_str());
-			if (!cam.get())
-				return error500();
-
-			if (session->request.content.size())
+			std::vector<std::shared_ptr<Camera> > list_of_cameras;
+			if (req_cam_id=="all")
 			{
-				// Parse JSON to get ROI
-
-				rapidjson::Document d;
-				d.Parse(session->request.content.c_str());
-
-				int x = d["x"].GetInt();
-				int y = d["y"].GetInt();
-				int w = d["w"].GetInt();
-				int h = d["h"].GetInt();
-
-				cam->set_roi(x,y,x+w,y+h);
+				// Act on all cameras of this node
+				list_of_cameras = m_node->cameraList();
 			}
 			else
 			{
-				// Reset Camera ROI
-				cam->reset_roi();
+				// Act one one specific camera
+				auto cam = m_node->cameraById(req_cam_id.c_str());
+				if (!cam.get())
+					return error500();
+				list_of_cameras.push_back(cam);
 			}
 
+			std::for_each(list_of_cameras.begin(), list_of_cameras.end(), [&](std::shared_ptr<Camera>& cam) {
+
+				if (session->request.content.size())
+				{
+					// Parse JSON to get ROI
+
+					rapidjson::Document d;
+					d.Parse(session->request.content.c_str());
+					if (d.HasMember("percent"))
+					{
+						double p = d["percent"].GetDouble();
+
+						int nw = (cam->width()*p)/100.0;
+						int nh = (cam->height()*p)/100.0;
+						int offsetx = (cam->width() - nw)/2;
+						int offsety = (cam->height() - nh)/2;
+						cam->set_roi(offsetx,offsety,offsetx+nw,offsety+nh);
+					}
+					else
+					{
+						int x = d["x"].GetInt();
+						int y = d["y"].GetInt();
+						int w = d["w"].GetInt();
+						int h = d["h"].GetInt();
+
+						cam->set_roi(x,y,x+w,y+h);
+					}
+				}
+				else
+				{
+					// Reset Camera ROI
+					cam->reset_roi();
+				}
+
+			});
+	
 			return simple200Json();
 		}
 		else if (paths.size() == 4 && paths[0] == "camera")
@@ -440,6 +538,8 @@ std::string NodeHttpServer::handleRequest(std::shared_ptr<Session> session)
 		}
 		else if (paths.size() > 1 && paths[0] == "toggle_using_sync")
 		{
+			// OBSOLETE, generalized to /options and setGlobalParams
+
 			std::string req_cam_id = paths[1];
 
 			auto cam = m_node->cameraById(req_cam_id.c_str());
@@ -473,52 +573,80 @@ std::string NodeHttpServer::handleRequest(std::shared_ptr<Session> session)
 		// Steps for Single Shot
 		else if (paths.size() > 0 && paths[0] == "all_prepare_single") // TODO take recieve folder name from server (timestamp+id)
 		{
-			m_node->prepare_single(1);
+			int burst_count = 1;
+			if (paths.size() > 1)
+				burst_count = std::atoi(paths[1].c_str());
+			m_node->setBurstCount(burst_count);
+
+			if (burst_count>1)
+				m_node->GotoState(STATE_BURST_PREPARE1);			
+			else
+				m_node->GotoState(STATE_SINGLESHOT_PREPARE1);			
+			return simple200Json();
+		}
+		else if (paths.size() > 0 && paths[0] == "all_prepare_single2")
+		{
+			if (m_node->getBurstCount()>1)
+				m_node->GotoState(STATE_BURST_PREPARE2);
+			else
+				m_node->GotoState(STATE_SINGLESHOT_PREPARE2);
 			return simple200Json();
 		}
 		else if (paths.size() > 0 && paths[0] == "all_start_single")
 		{
-			m_node->recording_trigger();
+			if (m_node->getBurstCount()>1)
+				m_node->GotoState(STATE_BURST_START);
+			else
+				m_node->GotoState(STATE_SINGLESHOT_START);
 			return simple200Json();
 		}
 		else if (paths.size() > 0 && paths[0] == "all_finalize_single")
 		{
-			shared_json_doc summary = m_node->finalize_single();
-
+			if (m_node->getBurstCount()>1)
+				m_node->GotoState(STATE_BURST_FINALIZE);
+			else
+				m_node->GotoState(STATE_SINGLESHOT_FINALIZE);
+			m_node->GotoState(STATE_PREVIEW);
+			shared_json_doc summary = m_node->get_last_summary();
 			return summary200(summary);
 		}
 
 		// Steps for Multi Shot
 		else if (paths.size() > 0 && paths[0] == "all_prepare_multi1") // TODO take recieve folder name from server (timestamp+id)
 		{
-			m_node->prepare_multi_stage1();
+			m_node->GotoState(STATE_CONTINUOUS_PREPARE1);
 			return simple200Json();
 		}
 		else if (paths.size() > 0 && paths[0] == "all_prepare_multi2")
 		{
-			m_node->prepare_multi_stage2();
+			m_node->GotoState(STATE_CONTINUOUS_PREPARE2);
 			return simple200Json();
 		}
 		else if (paths.size() > 0 && paths[0] == "all_start_multi")
 		{
-			m_node->recording_trigger();
+			m_node->GotoState(STATE_CONTINUOUS_START);
+			return simple200Json();
+		}
+		else if (paths.size() > 0 && paths[0] == "all_stop_sync")
+		{
+			m_node->GotoState(STATE_STOP_SYNC);
 			return simple200Json();
 		}
 		else if (paths.size() > 0 && paths[0] == "all_stop_recording")
 		{
-			shared_json_doc summary = m_node->stop_recording_all();
-
+			m_node->GotoState(STATE_STOP);			
+			shared_json_doc summary = m_node->get_last_summary();
 			return summary200(summary);
 		}
-
-		else if (paths.size() > 0 && paths[0] == "pause_sync")
+		else if (paths.size() > 0 && paths[0] == "resume_preview")
 		{
-			m_node->pause_sync();
+			m_node->GotoState(STATE_PREVIEW);			
 			return simple200Json();
 		}
-		else if (paths.size() > 0 && paths[0] == "resume_sync")
+		else if (paths.size() > 0 && paths[0] == "message")
 		{
-			m_node->resume_sync(false);
+			std::string message = session->request.content;
+			m_node->GenericMessage(message);
 			return simple200Json();
 		}
 	}

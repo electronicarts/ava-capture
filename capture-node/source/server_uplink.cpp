@@ -322,7 +322,13 @@ std::string ServerUplink::sendKeepalive(bool request_params)
 
 		rapidjson::Value driveinfo(rapidjson::kObjectType);
 		driveinfo.AddMember("path", strVal, d.GetAllocator());
+#ifdef WIN32
+		// On windows, we can display the root of the drive.
+		// In linux this is not possible because different drives can be mounted anywhere in the filesystem
 		strVal.SetString(P.parent_path().string().c_str(), d.GetAllocator());
+#else
+		strVal.SetString(c.first.c_str(), d.GetAllocator());
+#endif
 		driveinfo.AddMember("root", strVal, d.GetAllocator());
 		driveinfo.AddMember("bandwidth", c.second, d.GetAllocator()); // MB/s
 		driveinfo.AddMember("available", si.available / 1024 / 1024, d.GetAllocator()); // MB
