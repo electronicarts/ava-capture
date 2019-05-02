@@ -1,19 +1,19 @@
 <div *ngIf="visible">
 
-  <div class="card" style="margin-top: 3px;margin-bottom: 3px;">
-    <div class="card-header">
-        <h4>
-            Camera {{cam_model}} <span class="fw-semi-bold">{{cam_unique_id}}</span> <small>{{cam_version}}</small>
-            <div class="pull-right">
-                <a href="http://{{cam_ip}}:8080/camera/{{cam_unique_id}}/live" target="_blank"><i class="fa fa-window-restore"></i></a>
-                <button type="button" class="btn btn-default" aria-label="Close" (click)="hide()"><i class="fa fa-close"></i></button>
+    <div class="card" style="margin-top: 3px;margin-bottom: 3px;">
+        <div class="card-header">
+            <div style="display:inline-block">
+                <h4>Camera {{cam_model}} <b>{{cam_unique_id}}</b> {{cam_version}}</h4>    
             </div>
-        </h4>
+            <div class="pull-right">
+                <a style="font-size: small;" href="http://{{cam_ip}}:8080/camera/{{cam_unique_id}}/live" target="_blank" (click)="hide()">Fullscreen</a>
+                <button type="button" class="btn btn-large" aria-label="Close" (click)="hide()">
+                    <i class="fa fa-close"></i> Close Single Camera View
+                </button>
+            </div>
+        </div>
+        <div class="card-block">
+            <imagezoom-selector (onSetROI)="setROI($event)" (onSetROIPercent)="setROIPercent($event)" (onResetROI)="resetROI()"></imagezoom-selector>
+        </div>
     </div>
-    <div class="card-block">
-
-        <imagezoom-selector (onSetROI)="setROI($event)" (onResetROI)="resetROI()"></imagezoom-selector>
-
-    </div>
-  </div>
 </div>

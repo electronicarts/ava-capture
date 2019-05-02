@@ -1,12 +1,11 @@
 //
-// Copyright (c) 2017 Electronic Arts Inc. All Rights Reserved 
+// Copyright (c) 2018 Electronic Arts Inc. All Rights Reserved 
 //
 
 import { Injectable } from '@angular/core';
-import { Headers, Response } from '@angular/http';
-import { AuthHttp, tokenNotExpired } from 'angular2-jwt';
+import { HttpClient } from '@angular/common/http';
 
-import { Observable } from 'rxjs/Rx';
+import { of } from 'rxjs';
 
 @Injectable()
 export class NotificationService {
@@ -14,7 +13,7 @@ export class NotificationService {
   notif_next_id : number = 1;
   notifications = [];
     
-  constructor(public authHttp: AuthHttp) {
+  constructor(public authHttp: HttpClient) {
   }
 
   notifyError(msg : string) {
@@ -44,7 +43,7 @@ export class NotificationService {
   }
 
   getNotificationStream() {
-    return Observable.of(this.notifications);
+    return of(this.notifications);
   }
  
 }

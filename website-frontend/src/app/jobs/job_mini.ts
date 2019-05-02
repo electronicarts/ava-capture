@@ -1,10 +1,11 @@
 //
-// Copyright (c) 2017 Electronic Arts Inc. All Rights Reserved 
+// Copyright (c) 2018 Electronic Arts Inc. All Rights Reserved 
 //
 
 import { Component, Input, Output, EventEmitter } from '@angular/core';
 import { Router, NavigationEnd } from '@angular/router';
 import { JobsService } from './jobs.service';
+import { NotificationService } from '../notifications.service';
 
 @Component({
   selector: 'job_label',
@@ -16,10 +17,15 @@ export class JobLabel {
   @Input() job : any;
   @Input() show_link: boolean = true;
   @Input() minwidth: string = "340px";
+  @Output() onJobDetails = new EventEmitter<number>();
 
   show_image : boolean = false;  
 
-  constructor(private jobsService: JobsService) {
+  constructor(private notificationService: NotificationService, private jobsService: JobsService) {
+  }  
+
+  showJobDetails(jobid : number) {
+    this.onJobDetails.emit(jobid);
   }  
 
   toggleImage() {
@@ -30,8 +36,9 @@ export class JobLabel {
     
     this.jobsService.restartJob(job_id, clone_job, use_same_machine).subscribe(
         data => {},
-        err => console.error(err),
-        () => {}
+        err => {
+          this.notificationService.notifyError(`ERROR: Could not restart job (${err.status} ${err.statusText})`);
+        }
       );
 
     event.preventDefault();
@@ -40,18 +47,20 @@ export class JobLabel {
   killJob(event, job_id) {
 
     this.jobsService.killJob(job_id).subscribe(
-        data => {},
-        err => console.error(err),
-        () => {}
-      );
+      data => {},
+      err => {
+        this.notificationService.notifyError(`ERROR: Could not kill job (${err.status} ${err.statusText})`);
+      }
+    );
   }
 
   deleteJob(event, job_id) {
 
     this.jobsService.deleteJob(job_id).subscribe(
-        data => {},
-        err => console.error(err),
-        () => {}
+      data => {},
+      err => {
+        this.notificationService.notifyError(`ERROR: Could not delete job (${err.status} ${err.statusText})`);
+      }
       );
   }
 
@@ -64,9 +73,14 @@ export class JobLabel {
 export class JobLabelList {
 
   @Input() jobs : any;
+  @Output() onJobDetails = new EventEmitter<number>();
 
   trackById(job : any) {
     return job.id;
-  }    
+  }
+
+  displayJobDetails(id) {
+    this.onJobDetails.emit(id);
+  }
 
 }

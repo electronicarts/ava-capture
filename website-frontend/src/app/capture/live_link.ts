@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2017 Electronic Arts Inc. All Rights Reserved 
+// Copyright (c) 2018 Electronic Arts Inc. All Rights Reserved 
 //
 
 import {$WebSocket, WebSocketSendMode, WebSocketConfig} from 'angular2-websocket/angular2-websocket';
@@ -81,7 +81,7 @@ export class NodeLink
                 if (cam.unique_id in this.cache) {
                     cam.jpeg_thumbnail = this.cache[cam.unique_id];
                 }
-            });            
+            });        
         }
         this.camera_list = camera_list;
     }

@@ -1,0 +1,54 @@
+<tr *ngIf="group_val.length" class="table-header"><td colspan="5">{{group_key}} ({{group_val.length}})</td></tr>
+
+<tr *ngFor="let farmnode of group_val | SearchPipe : searchText | OnlyActivePipe : show_only_active; trackBy:trackByNodeId">
+    <td>{{farmnode.id}}</td>
+    <td>
+    <div><b><a (click)="displayNodeDetails(farmnode.id)">{{farmnode.machine_name}}</a></b> ({{farmnode.system}})
+        <span *ngIf="farmnode.status=='accepting'" class="badge badge-default" style="margin-right:3px;"
+            [class.badge-info]="farmnode.cpu_percent>10"
+            [class.badge-warning]="farmnode.cpu_percent>70"
+            [class.badge-danger]="farmnode.cpu_percent>90">
+            CPU: {{farmnode.cpu_percent | number:'1.1-1'}}%        
+        </span>
+        <span *ngIf="farmnode.virt_percent>0"
+            class="badge badge-default" style="margin-right:3px;"
+            [class.badge-info]="farmnode.virt_percent>10" 
+            [class.badge-warning]="farmnode.virt_percent>70"
+            [class.badge-danger]="farmnode.virt_percent>90">
+            Mem: {{farmnode.virt_percent | number:'1.1-1'}}%
+        </span>
+        <div class="tag tagnode" *ngFor="let tag of farmnode.tags; trackBy:trackByContent">{{tag}}</div>
+    </div>
+    <div><small>{{farmnode.cpu_brand}} CPU ({{farmnode.cpu_cores}} Threads) <span *ngIf="farmnode.gpu_count>0">, {{farmnode.gpu_count}} CUDA GPU</span></small></div>
+    </td>
+    <td class="hidden-sm-down">
+    <div>{{farmnode.last_seen | timeago}}</div>
+    <div><small>Version:{{farmnode.code_version}}</small></div>
+    <div><small>git:{{farmnode.git_version}}</small></div>
+    </td>
+    <td class="hidden-sm-down">
+    <job_label_list (onJobDetails)="displayJobDetails($event);" [jobs]="farmnode.running_jobs"></job_label_list>
+    </td>
+    <td class="width-150">
+        <div>
+            <span class="badge badge-warning" *ngIf="!farmnode.accepting">ON HOLD</span>
+            <span class="badge" style="margin-top: 0px;"
+            [class.badge-success]="farmnode.status=='accepting'"
+            [class.badge-default]="farmnode.status=='offline'">
+            {{farmnode.status}}
+            </span> 
+            <button [disabled]="farmnode.status=='offline'" type="button" class="btn btn-primary btn-xs" (click)="reloadClient($event, farmnode.id)">Restart</button>            
+        </div>
+        <div *ngIf="farmnode.aws_instance_id">
+            <div class="tag-group">
+                <div class="tag tagaws">AWS</div>
+                <div class="tag"
+                [class.tagawsdisabled]="farmnode.aws_instance_state!='running'"
+                [class.tagawsready]="farmnode.aws_instance_state=='running'"
+                >{{farmnode.aws_instance_state}}</div>
+            </div>
+            <button *ngIf="farmnode.aws_instance_state!='running' && farmnode.aws_instance_state!='pending'" type="button" class="btn btn-primary btn-xs" (click)="startAWSInstance($event, farmnode.id)">Start Instance</button>
+        </div>
+    </td>
+</tr>
+

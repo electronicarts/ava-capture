@@ -1,0 +1,14 @@
+<div *ngIf="job_id>0" class="bottominfopanel">
+    <div class="header">
+        <h4 style="display: inline-block; padding:3px;">
+            Job Details #{{job_id}}
+        </h4>
+        <div style="float: right !important; ">
+        <button class="btn btn-close" aria-label="Close" (click)="hideJobDetails()">&times;</button>
+        </div>
+    </div>
+    <div class="content">
+        <job_details [jobid]="job_id"></job_details>       
+    </div>
+</div>
+    

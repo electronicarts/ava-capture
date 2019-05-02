@@ -1,9 +1,9 @@
 //
-// Copyright (c) 2017 Electronic Arts Inc. All Rights Reserved 
+// Copyright (c) 2018 Electronic Arts Inc. All Rights Reserved 
 //
 
 import { Injectable } from '@angular/core';
-import { BaseRequestOptions, RequestOptions } from '@angular/http'
+import { BaseRequestOptions } from '@angular/http'
 
 @Injectable()
 export class ExRequestOptions extends BaseRequestOptions  {

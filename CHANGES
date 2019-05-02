@@ -29,8 +29,12 @@ Ava Job Client
 
 Ava Server Frontend
 
-    - Link to download the image in recording summary
-
+   - Link to download the image in recording summary
+   - Update Angular and other libraries to recent version
+   - Capture page, add option for raw/tif image capture
+   - Capture page, add UI to set color balance
+   - More responsive zommed-in view of single camera
+   - Misc improvements and bug fixes
 
 Ava Server Backend
 

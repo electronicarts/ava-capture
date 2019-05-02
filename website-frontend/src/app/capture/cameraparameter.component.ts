@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2017 Electronic Arts Inc. All Rights Reserved 
+// Copyright (c) 2018 Electronic Arts Inc. All Rights Reserved 
 //
 
 import { Component, Input, Output, ViewChild, EventEmitter } from '@angular/core';
@@ -15,7 +15,7 @@ import { Component, Input, Output, ViewChild, EventEmitter } from '@angular/core
     </span>
     <span *ngIf="!disabled && (edit_visible || editAlwaysVisible)">
       <input #param_edit_box type="number" [min]="min" [max]="max" [(ngModel)]="new_value" [disabled]="disabled">
-      <button [disabled]="disabled" (click)="changevalue()">Change</button>
+      <button class="btn" [disabled]="disabled" (click)="changevalue()">Change</button>
     </span>`
 })
 export class CameraParameterValueComponent {

@@ -1,27 +1,77 @@
 <section class="content">
 
-<h1 class="page-title">Ava Capture Dashboard</h1>
+  <h1 class="page-title">Ava Capture Dashboard</h1>
 
-<div class="row">
-  <div class="col-md-8">
-    <section widget class="widget">
-      <header>
-        <h4>
-          Welcome to SEED <span class="fw-semi-bold">Ava Capture</span>
-        </h4>
-      </header>
-      <div class="widget-body">
-        <p>TODO:</p>
-        <ul>
-          <li>1. Calendar of capture sessions + link to review</li>
-          <li>2. List of 5? most recent capture projects + link to review and pipeline</li>
-          <li>3. List of 5? most recent jobs + link to job page</li>
-          <li>4. Summary of how many farm machines we have + stats of most used in the last week        </li>
-        </ul>
-      </div>
-    </section>
+  <div class="row">
+    <div class="col-md-8">
+      <section widget class="widget">
+        <header>
+          <h4>
+            Welcome to SEED
+            <span class="fw-semi-bold">Ava Capture</span>
+          </h4>
+        </header>
+        <div class="widget-body">
+          <section class="content-block">
+            <div class="row">
+              <h4>Recent Capture Sessions</h4>
+              <div *ngFor="let session of data_recent_capture_sessions?.results; trackBy:trackById">
+                {{session.project_name}} {{session.name}} ({{session.shot_count}} shots, {{session.take_count}} takes)
+                <button class="btn btn-default btn-xs" [routerLink]=" ['/app/review/session/archive-session', session.id] ">Details</button>
+                <button class="btn btn-default btn-xs" [routerLink]=" ['/app/pipeline/assets-by-project', session.project_id] ">Pipeline</button>
+              </div>
+            </div>
+          </section>
+          <section class="content-block">
+            <div class="row">
+              <h4>
+                <a [routerLink]=" ['/app/farm/farm-nodes'] ">Active Farm Nodes</a>
+              </h4>
+              <div *ngFor="let farmnode of data_active_farm_nodes?.results | OnlyActivePipe; trackBy:trackById">
+                {{farmnode.machine_name}} ({{farmnode.system}})
+                <span 
+                    class="badge badge-default" style="margin-right:3px;"
+                    [class.badge-info]="farmnode.cpu_percent>10" 
+                    [class.badge-warning]="farmnode.cpu_percent>70"
+                    [class.badge-danger]="farmnode.cpu_percent>90">
+                    CPU: {{farmnode.cpu_percent | number:'1.1-1'}}%
+                  </span>
+                  <span *ngIf="farmnode.virt_percent>0"
+                    class="badge badge-default" style="margin-right:3px;"
+                    [class.badge-info]="farmnode.virt_percent>10" 
+                    [class.badge-warning]="farmnode.virt_percent>70"
+                    [class.badge-danger]="farmnode.virt_percent>90">
+                    Mem: {{farmnode.virt_percent | number:'1.1-1'}}%
+                  </span>
+                  <div class="tag tagnode" *ngFor="let tag of farmnode.tags">{{tag}}</div>
+                  <small> {{farmnode.cpu_brand}} CPU ({{farmnode.cpu_cores}} Threads)
+                    <span *ngIf="farmnode.gpu_count>0">, {{farmnode.gpu_count}} CUDA GPU</span>
+                  </small>
+              </div>
+            </div>
+          </section>
+          <section class="content-block">
+            <div class="row">
+              <h4>
+                <a [routerLink]=" ['/app/farm/jobs-running'] ">Recent Finished Jobs</a>
+              </h4>
+              <job_label_list *ngIf="data_recent_finished_jobs" [jobs]="data_recent_finished_jobs.results"></job_label_list>
+            </div>
+          </section>
+          <section class="content-block">
+            <div class="row">
+              <h4>
+                <a [routerLink]=" ['/app/farm/jobs-running'] ">Running Jobs</a>
+              </h4>
+              <job_label_list *ngIf="data_running_jobs" [jobs]="data_running_jobs.results"></job_label_list>
+            </div>
 
+          </section>
+
+        </div>
+      </section>
+
+    </div>
   </div>
-</div>
 
 </section>

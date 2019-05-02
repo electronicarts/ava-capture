@@ -25,4 +25,5 @@
 
 </div>
 
-<h4 *ngIf="!job_data" style="display:inline;"><span class="badge badge-danger"><strong>Warning!</strong> Job does no exist</span></h4>
+<h4 *ngIf="loading" style="display:inline;"><i class="fa fa-spinner fa-pulse fa-fw"></i> Loading...</h4>
+<h4 *ngIf="!job_data && !loading" style="display:inline;"><span class="badge badge-danger"><strong>Warning!</strong> Job does no exist</span></h4>

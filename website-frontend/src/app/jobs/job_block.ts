@@ -1,10 +1,11 @@
 //
-// Copyright (c) 2017 Electronic Arts Inc. All Rights Reserved 
+// Copyright (c) 2018 Electronic Arts Inc. All Rights Reserved 
 //
 
 import { Component, Input, Output, EventEmitter } from '@angular/core';
 
 import { JobsService } from './jobs.service';
+import { NotificationService } from '../notifications.service';
 
 @Component({
   selector: 'job_block',
@@ -16,7 +17,7 @@ export class JobBlock {
   @Input() detailed : Boolean;
   @Output() onGotoJob = new EventEmitter<number>();
 
-  constructor(private jobsService: JobsService) {
+  constructor(private notificationService: NotificationService, private jobsService: JobsService) {
       this.detailed = false;
   }
 
@@ -24,31 +25,43 @@ export class JobBlock {
     this.onGotoJob.emit(jobid);
   }
 
+  restartChildJobs(event, job_id, use_same_machine) {
+    
+      this.jobsService.restartFailedChildJob(job_id, use_same_machine).subscribe(
+        data => {},
+        err => { this.notificationService.notifyError(`ERROR: Could not restart jobs (${err.status} ${err.statusText})`); }
+        );
+  
+      event.preventDefault();
+    }
+
   restartJob(event, job_id, clone_job, use_same_machine) {
 
     this.jobsService.restartJob(job_id, clone_job, use_same_machine).subscribe(
-        data => {},
-        err => console.error(err),
-        () => {}
-      );
+      data => {},
+      err => { this.notificationService.notifyError(`ERROR: Could not restart job (${err.status} ${err.statusText})`); }
+    );
 
     event.preventDefault();
   }
 
-  changePriority(job, value) {
+  changePriority(event, job, value) {
+    
     this.jobsService.changePriority(job.id, value).subscribe(
-      data => {},
-      err => console.error(err),
-      () => {}
+      data => {
+        job.priority = value;
+      },
+      err => { this.notificationService.notifyError(`ERROR: Could not change job priority (${err.status} ${err.statusText})`); }
     ); 
+
+    event.preventDefault();
   }
 
   killJob(event, job_id) {
 
     this.jobsService.killJob(job_id).subscribe(
         data => {},
-        err => console.error(err),
-        () => {}
+        err => { this.notificationService.notifyError(`ERROR: Could not kill job (${err.status} ${err.statusText})`); }
       );
   }
 
@@ -56,8 +69,7 @@ export class JobBlock {
 
     this.jobsService.deleteJob(job_id).subscribe(
         data => {},
-        err => console.error(err),
-        () => {}
+        err => { this.notificationService.notifyError(`ERROR: Could not delete job (${err.status} ${err.statusText})`); }
       );
   }
 

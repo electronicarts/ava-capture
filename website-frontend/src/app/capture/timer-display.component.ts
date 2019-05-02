@@ -1,10 +1,12 @@
 //
-// Copyright (c) 2017 Electronic Arts Inc. All Rights Reserved 
+// Copyright (c) 2018 Electronic Arts Inc. All Rights Reserved 
 //
 
 
 import { Component } from '@angular/core';
-import { Observable } from 'rxjs/Rx';
+
+import { interval } from 'rxjs';
+import { startWith } from 'rxjs/operators';
 
 @Component({
   selector: 'timer-display',
@@ -29,7 +31,7 @@ export class TimerDisplayComponent {
       if (this.subscription)
         this.subscription.unsubscribe();
       this.starttime = Date.now();
-      this.subscription = Observable.interval(250).startWith(0)
+      this.subscription = interval(250).pipe(startWith(0))
             .subscribe(() => this.displayvalue = this.TimeStr(Date.now() - this.starttime));
     }
 

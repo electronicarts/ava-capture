@@ -8,28 +8,35 @@
     [style.min-width]="minwidth"
     >
 
-    <div style="float: left; padding-right: 5px;">
-      <i class="fa fa-cog"></i> 
-      <a *ngIf="show_link" style="color: inherit;" [routerLink]="['/app/job_details', job.id] ">{{job.id}}</a>
-      <a *ngIf="job.image_filename" (click)="toggleImage()"><i class="fa fa-image"></i></a>
-      <div *ngIf="show_image">
-          <img style="margin:4px;" width="256" height="auto" src="/static/thumb/{{job.image_filename}}">
-      </div>
-      <b>{{job.job_class}}</b> 
+    <div style="float: left; padding-right: 5px;">      
+      <a (click)="showJobDetails(job.id);" style="color: inherit;">
+        <i class="fa fa-cog"></i> {{job.id}}
+        <b>{{job.job_class}}</b>
+      </a>
+      &nbsp;<a *ngIf="job.image_filename" (click)="toggleImage()"><i class="fa fa-image"></i></a>
+      &nbsp;<a target="_blank" [routerLink]=" ['/app/job-output', job.id] "><i class="fa fa-file-text"></i></a>
     </div>     
 
     <div style="float: right;">
       {{job.status}}    
-      <div class="dropdown-hover">
-        <button class="dropbtn"><i class="fa fa-bars" style="padding-right: 5px; padding-left: 2px;"></i></button>
-        <div class="dropdown-content">
-            <a *ngIf="show_link" [routerLink]="['/app/job_details', job.id] "><i class="fa fa-mail-forward"></i> Details</a>
-            <a *ngIf="job.status=='failed' || job.status=='success'" (click)="restartJob($event, job.id, false, false);"><i class="fa fa-repeat"></i> Restart</a>
-            <a *ngIf="job.status=='failed' || job.status=='success'" (click)="restartJob($event, job.id, false, true);"><i class="fa fa-repeat"></i> Restart on same computer</a>
-            <a *ngIf="job.status=='ready' || job.status=='failed' || job.status=='success'" (click)="deleteJob($event, job.id);"><i class="fa fa-trash-o"></i> Delete</a>
-            <a *ngIf="job.status=='running'" (click)="killJob($event, job.id);"><i class="fa fa-times-circle"></i> Kill</a>
-          </div>
-      </div>
-    </div>     
+
+      <!-- Dropdown menu for Job Actions -->
+      <button type="button" class="btn-invisible dropdown-toggle" onclick="dropdownToggle(this)" onblur="dropdownHide(this)">
+          <i style="padding: 0px 3px;" class="fa fa-bars"></i>
+      </button>
+      <div class="dropdown-menu">
+          <a class="dropdown-item" (click)="showJobDetails(job.id);"><i class="fa fa-mail-forward"></i> Details</a>
+          <a class="dropdown-item" *ngIf="job.status=='failed' || job.status=='success' || job.status=='waiting'" (click)="restartJob($event, job.id, false, false);"><i class="fa fa-repeat"></i> Restart</a>
+          <a class="dropdown-item" *ngIf="job.status=='failed' || job.status=='success' || job.status=='waiting'" (click)="restartJob($event, job.id, false, true);"><i class="fa fa-repeat"></i> Restart on same computer</a>
+          <a class="dropdown-item" *ngIf="job.status=='ready' || job.status=='failed' || job.status=='success'" (click)="deleteJob($event, job.id);"><i class="fa fa-trash-o"></i> Delete</a>
+          <a class="dropdown-item" *ngIf="job.status=='running'" (click)="killJob($event, job.id);"><i class="fa fa-times-circle"></i> Kill</a>
+      </div>                
+
+    </div>
+
+    <div *ngIf="show_image">
+      <img style="margin:4px;" width="256" height="auto" src="/static/thumb/{{job.image_filename}}">
+    </div>
+
   </span>
 </div>

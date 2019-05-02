@@ -1,11 +1,12 @@
 //
-// Copyright (c) 2017 Electronic Arts Inc. All Rights Reserved 
+// Copyright (c) 2018 Electronic Arts Inc. All Rights Reserved 
 //
 
 import {Component, ViewEncapsulation} from '@angular/core';
 import { Router, ActivatedRoute, Params } from '@angular/router';
 
 import { JobsService } from './jobs.service';
+import { NotificationService } from '../notifications.service';
 import { LoadDataEveryMs } from '../../utils/reloader';
 
 declare var jQuery: any;
@@ -27,7 +28,7 @@ export class JobsRunningPage {
   filter_search : string = null;
   filter_status : string = 'all';
 
-  constructor(private jobsService: JobsService, private route: ActivatedRoute) {
+  constructor(private notificationService: NotificationService, private jobsService: JobsService, private route: ActivatedRoute) {
   }
 
   hideJobDetails() {
@@ -42,8 +43,7 @@ export class JobsRunningPage {
 
     this.jobsService.restartJob(job_id, clone_job, use_same_machine).subscribe(
         data => {},
-        err => console.error(err),
-        () => {}
+        err => { this.notificationService.notifyError(`ERROR: Could not restart job (${err.status} ${err.statusText})`); }
       );
 
     event.preventDefault();
@@ -66,7 +66,8 @@ export class JobsRunningPage {
 
     this.loader.start(3000, () => { return this.jobsService.getFarmJobs(this.filter_search, this.filter_status, this.filter_limit); }, data => {
           this.jobs_data = data.results;
-        });
+        }, err=>{},
+      'getFarmNodes_'+this.filter_search+this.filter_status+this.filter_limit); // cache_key
 
   }
 

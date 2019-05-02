@@ -1,12 +1,12 @@
 //
-// Copyright (c) 2017 Electronic Arts Inc. All Rights Reserved 
+// Copyright (c) 2018 Electronic Arts Inc. All Rights Reserved 
 //
 
 import { Component, OnInit } from '@angular/core';
 import { Router, NavigationEnd} from '@angular/router';
 import { Location } from '@angular/common';
 
-import { UserService } from '../../../services/user.service';
+import { UserService, UserModel } from '../../../services/user.service';
 import { CaptureService } from '../../capture/capture.service';
 
 import { LoadDataEveryMs } from '../../../utils/reloader';
@@ -22,14 +22,13 @@ export class SidebarComponent {
 
   router: Router;
   location: Location;
+  user : UserModel = new UserModel();;
 
-  user = {first_name: '', last_name: '', gravatar: '', email: ''};
   capture_locations = [];
   nb_running_jobs = 0;
   nb_queued_jobs = 0;
   nb_farmnodes_active = 0;
 
-  img_frostbite_logo_black = require("../../../assets/images/frostbite_logo_black.png");
   img_lightstage = require("../../../assets/images/lightstage.png");
 
   loader = new LoadDataEveryMs();
@@ -55,7 +54,7 @@ export class SidebarComponent {
           // There are two ways the JWT can expire, on the frontend (Angular2-jwt) or on the server (Django Rest Jwt returns 401)
 
           if (err.status === 401 || err.message === 'No JWT present or has expired') { // TODO With new version of angular2-jwt use isinstanceof AuthError
-            this.router.navigate(['/login']);
+            this.router.navigate(['/login'], {queryParams: { returnUrl: this.router.url}});
           }
 
         });

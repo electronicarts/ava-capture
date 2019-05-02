@@ -33,13 +33,19 @@
         </div>
     </div>
 
-    <div style="text-align:center;">
-        Calibration File: <input size="80" type="text" [(ngModel)]="ct_calib_path">
-    </div>
-
     <div class="alert alert-danger" *ngIf="error_message"><strong>Error!</strong> {{error_message}}</div>
 
 </div>
 
-<button [disabled]="!ct_calib_path || ct_end_time==0" (click)="onCreateTrackingAsset()" type="button" class="btn btn-apply"><i class="fa fa-file-video-o"></i> Create</button>
-<button type="button" class="btn btn-default" (click)="onCancel();">Cancel</button>
+<button [disabled]="ct_end_time==0 || working" (click)="onCreateTrackingAsset(true);" type="button" class="btn btn-apply"><i class="fa fa-file-video-o"></i> Create and Quit</button>
+<button [disabled]="ct_end_time==0 || working" (click)="onCreateTrackingAsset(false);" type="button" class="btn btn-apply"><i class="fa fa-file-video-o"></i> Create and Continue</button>
+<button type="button" class="btn btn-default" (click)="onCancel();">Close</button>
+
+<div  style="margin:10px;" *ngIf="ct_take_info">
+    <div>Tracking Assets associated with this take:</div>
+    <div *ngFor="let asset of ct_take_info.related_trackingassets; trackBy:trackById">
+        <div>#{{asset.id}} start_time:{{asset.start_time | number:'1.1-1'}}s end_time:{{asset.end_time | number:'1.1-1'}}s</div>
+    </div>
+</div>
+
+<div style="margin:10px;">{{messages}}</div>

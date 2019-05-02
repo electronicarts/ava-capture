@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2017 Electronic Arts Inc. All Rights Reserved 
+// Copyright (c) 2018 Electronic Arts Inc. All Rights Reserved 
 //
 
 import { Component, ViewChild } from '@angular/core';
@@ -7,10 +7,10 @@ import { Router, ActivatedRoute, Params } from '@angular/router';
 
 import { CaptureService } from './capture.service';
 import { UserService } from '../../services/user.service';
+import { CoreComponent } from '../core/core.component';
 
 import { TimerDisplayComponent } from './timer-display.component';
 import { SummaryComponent } from './summary.component';
-import { SessionNameComponent } from './sessionname.component';
 import { ZoomViewComponent } from './zoomview.component';
 
 import { LoadDataEveryMs } from '../../utils/reloader';
@@ -34,9 +34,6 @@ export class LiveCapturePage {
   @ViewChild(TimerDisplayComponent)
   public timerdisplay : TimerDisplayComponent;
 
-  @ViewChild('shot')
-  public shotNameComponent : SessionNameComponent;
-
   capturenodes = [];
   capturecameras = [];
   counter = 1;
@@ -44,6 +41,8 @@ export class LiveCapturePage {
 
   recording = false;
   recording_single = false;
+  recording_burst_length = 16;
+  recording_burst_is_scan = true;
 
   read_access = true;
   write_access = false;
@@ -54,12 +53,16 @@ export class LiveCapturePage {
 
   hardware_sync_frequency = null;
   pulse_duration = null;
+  wb_R = 1.0;
+  wb_G = 1.0;
+  wb_B = 1.0;
   external_sync = 0;
   show_focus_peak = false;
   show_overexposed = false;
   show_histogram = false;
   bitdepth_avi = 8;
   bitdepth_single = 8;
+  image_format = 'tif';
 
   loader = new LoadDataEveryMs();
   livelink = new LiveNodeLink();
@@ -72,9 +75,19 @@ export class LiveCapturePage {
   shot_name = '';
   next_take = 1;
 
+  // Variables for the New Session dialog
   create_session_name = '';
   create_session_error = null;
+  create_session_existing_project = 0;
+  create_session_add_to_project = 0;
+  create_session_new_project = '';
 
+  create_shot_name = '';
+  create_shot_error = null;
+
+  projects_subscription = null;
+  project_data = []
+  
   camera_models = [];
   camera_count = 0;
   batch_target = 'all';
@@ -92,11 +105,34 @@ export class LiveCapturePage {
 
   show_camera_list = false;
 
-  constructor(private captureService: CaptureService, private route: ActivatedRoute, private userService: UserService) {
+  summary_content : any = null;
+
+  session_pattern : string = "[a-zA-Z0-9_-]+";
+
+//  test_ws = null;
+
+  constructor(private captureService: CaptureService, private route: ActivatedRoute, private userService: UserService, private coreComponent: CoreComponent) {
   }
 
-  toggle_view_cameras_per_node() {
-    this.camera_view_mode = (this.camera_view_mode+1)%3;
+  all_cameras_crop_center(percent) {
+    this.captureService.setCameraROIPercent(-1, percent, this.location_id).subscribe(
+      data => { },
+      err => console.error(err),
+      () => {}
+    );
+  }
+  all_cameras_reset_crop() {
+    this.captureService.resetCameraROI(-1, this.location_id).subscribe(
+      data => { },
+      err => console.error(err),
+      () => {}
+    );
+}
+
+  changeCameraView(index) {
+    this.camera_view_mode = (index)%3;
+
+    localStorage.setItem('ui_camera_view', String(this.camera_view_mode));
   }
 
   batch_camera(callbackFn) {
@@ -134,12 +170,8 @@ export class LiveCapturePage {
     });
   }
 
-  trackByNodeId(index: number, node) {
-    return node.id;
-  }
-
-  trackByCameraId(index: number, cam) {
-    return cam.id;
+  trackById(index: number, obj) {
+    return obj.id;
   }
 
   trackByDriveRoot(index: number, drive) {
@@ -160,6 +192,13 @@ export class LiveCapturePage {
       data => {},
       err => console.error(err)
     );
+  }
+
+  getRotation(camera) {
+    if (camera.hasOwnProperty('jpeg_thumbnail_is_histogram') && camera.jpeg_thumbnail_is_histogram)
+      return 0;
+    else
+      return camera.rotation;
   }
 
   onCameraRotateLeft(camera) {
@@ -216,7 +255,9 @@ export class LiveCapturePage {
     if (this.zoomview)
       this.zoomview.hide();
 
-    this.captureService.startRecording(this.location_id, this.session_id, this.shotNameComponent.value).subscribe(
+    this.hideSummary();
+
+    this.captureService.startRecording(this.location_id, this.session_id, this.shot_name).subscribe(
         data => {
           this.recording = true;
           this.timerdisplay.start();
@@ -229,13 +270,13 @@ export class LiveCapturePage {
   }
 
   onStopRecording() {
+    this.hideSummary();
     this.timerdisplay.pause();
     this.captureService.stopRecording(this.location_id).subscribe(
         data => {
           this.recording = false;
 
-          this.summary.content = data;
-          this.summary.show();
+          this.summary_content = data;
 
           this.timerdisplay.clear();
         },
@@ -246,13 +287,13 @@ export class LiveCapturePage {
       this.userService.refresh_token_if_needed();
   }
 
-  onSinglePhotoRecording() {
+  onBurstPhotoRecording(burst_length, burst_is_scan) {
+    this.hideSummary();
     this.recording_single = true;
-    this.captureService.recordSingleImage(this.location_id, this.session_id, this.shotNameComponent.value).subscribe(
+    this.captureService.recordImageBurst(this.location_id, this.session_id, this.shot_name, burst_length, burst_is_scan).subscribe(
         data => {
 
-          this.summary.content = data;
-          this.summary.show();
+          this.summary_content = data;
 
         },
         err => console.error(err),
@@ -264,25 +305,80 @@ export class LiveCapturePage {
       this.userService.refresh_token_if_needed();
   }
 
-  onNextCaptureShot() {
-      this.captureService.nextCaptureShot(this.location_id).subscribe(
+  onSinglePhotoRecording() {
+    this.hideSummary();
+    this.recording_single = true;
+    this.captureService.recordSingleImage(this.location_id, this.session_id, this.shot_name).subscribe(
         data => {
 
-          this.shot_id = 0;
-          this.shot_name = '-new-';
-          this.next_take = 1;
+          this.summary_content = data;
 
         },
         err => console.error(err),
-        () => {}
+        () => {
+          this.recording_single = false;
+        }
       );
+
+      this.userService.refresh_token_if_needed();
+  }
+
+  hideSummary() {
+    this.summary_content = null;
+  }
+
+  onNextShot() {
+    // Create new shot with the same name, the server will automatically create a unique name
+    this.create_shot_name = this.shot_name;
+    this.onCreateNewShot();
+  }
+
+  onShowCreateShotDialog() {
+    this.create_shot_name = '';
+    this.create_shot_error = null;
+
+    (<any>$('#createShotModal')).addClass('modal-dialog-container-show');
+    (<any>$('#createShotModal #name1')).focus();
+  }
+
+  onCancelCreateNewShot() {
+    (<any>$('#createShotModal')).removeClass('modal-dialog-container-show');
+  }
+
+  onCreateNewShot() {
+    this.captureService.nextCaptureShot(this.create_shot_name, this.location_id).subscribe(
+      data => {
+
+        this.shot_id = data.id;
+        this.shot_name = data.name;
+        this.next_take = 1;
+
+        (<any>$('#createShotModal')).removeClass('modal-dialog-container-show');
+
+      },
+      err => console.error(err),
+      () => {}
+    );    
+  }
+
+  onShotKeyDown(event) {
+    if (event.key === "Enter") {
+      this.onCreateNewShot();
+    }
+    if (event.key === "Escape") {
+      this.onCancelCreateNewShot();
+    }
   }
 
   onShowCreateSessionDialog() {
     this.create_session_name = '';
     this.create_session_error = null;
+    this.create_session_existing_project = 0;
+    this.create_session_add_to_project = this.project_id;
+    this.create_session_new_project = '';
 
     (<any>$('#createSessionModal')).addClass('modal-dialog-container-show');
+    (<any>$('#createSessionModal #name')).focus();
   }
 
   onCancelCreateNewSession() {
@@ -291,14 +387,21 @@ export class LiveCapturePage {
 
   onCreateNewSession() {
 
-    this.captureService.newCaptureSession(this.location_id, this.create_session_name).subscribe(
+    if (this.create_session_existing_project) {
+      this.create_session_new_project = '';
+    } else {
+      this.create_session_add_to_project = 0;
+    }
+
+    this.captureService.newCaptureSession(this.location_id, this.create_session_name, this.create_session_add_to_project, this.create_session_new_project).subscribe(
       data => {
 
         this.session_id = data.session_id;
         this.session_name = data.session_name;
-
-        this.shot_id = 0;
-        this.shot_name = '-new-';
+        this.project_id = data.project_id;
+        this.project_name = data.project_name;              
+        this.shot_id = data.shot_id;
+        this.shot_name = data.shot_name;
         this.next_take = 1;
 
         (<any>$('#createSessionModal')).removeClass('modal-dialog-container-show');
@@ -313,7 +416,21 @@ export class LiveCapturePage {
 
   }
 
-  enableZoonView(camera) {
+  onSessionKeyDown(event) {
+    if (event.key === "Enter") {
+      this.onCreateNewSession();
+    }
+    if (event.key === "Escape") {
+      this.onCancelCreateNewSession();
+    }
+  }
+
+  editSessionName(new_session_name) {
+    // TODO only if we have not changed directly the project name ?
+    this.create_session_new_project = new_session_name;
+  }
+
+  enableZoomView(camera) {
     this.zoomview.show(camera);
   }
 
@@ -336,6 +453,9 @@ export class LiveCapturePage {
       location : this.location_id,
       frequency : this.hardware_sync_frequency,
       pulse_duration : this.pulse_duration,
+      wb_R : this.wb_R,
+      wb_G : this.wb_G,
+      wb_B : this.wb_B,
       external_sync : this.external_sync==1
     };
 
@@ -356,7 +476,8 @@ export class LiveCapturePage {
       display_overexposed : this.show_overexposed,
       display_histogram : this.show_histogram,
       bitdepth_avi : Number(this.bitdepth_avi),
-      bitdepth_single : Number(this.bitdepth_single)     
+      bitdepth_single : Number(this.bitdepth_single),
+      image_format : this.image_format 
     };
 
     this.captureService.setLocationOptions(this.location_id, dataObj).subscribe(
@@ -377,6 +498,12 @@ export class LiveCapturePage {
 
     this.cancelSubscriptions();
 
+    this.projects_subscription = this.coreComponent.getProjectsStream().subscribe(
+      data => {
+        this.project_data = data;
+      }
+    );    
+    
     this.loader.start(1000, () => { return this.captureService.getCameraDetailsDirect(location_id); }, data => {
 
         this.load_failed = false;
@@ -396,9 +523,13 @@ export class LiveCapturePage {
         this.show_histogram = data.location.show_histogram;
         this.bitdepth_avi = data.location.bitdepth_avi;
         this.bitdepth_single = data.location.bitdepth_single;
+        this.image_format = data.location.image_format;
         
         this.hardware_sync_frequency = data.location.hardware_sync_frequency;
         this.pulse_duration = data.location.pulse_duration;
+        this.wb_R = data.location.wb_R;
+        this.wb_G = data.location.wb_G;
+        this.wb_B = data.location.wb_B;        
         this.external_sync = data.location.external_sync?1:0;
 
         this.livelink.update_from_nodes(data.nodes);
@@ -447,6 +578,9 @@ export class LiveCapturePage {
 
   ngOnInit(): void {
 
+
+    this.camera_view_mode = Number(localStorage.getItem('ui_camera_view'));
+
     // When Session modal dialog is displayed, focus on the text box
     $('#createSessionModal').on('shown.bs.modal', function () {
         $('#textareaID').focus();
@@ -472,7 +606,7 @@ export class LiveCapturePage {
 
       this.cancelSubscriptions();
       if (this.summary)
-        this.summary.hide();
+        this.summary_content = null;
       if (this.zoomview)
         this.zoomview.hide();
 
@@ -485,6 +619,11 @@ export class LiveCapturePage {
 
   cancelSubscriptions() {
     this.loader.release();
+
+    if (this.projects_subscription) {
+      this.projects_subscription.unsubscribe();
+    }
+    
   }
 
   ngOnDestroy(): void {

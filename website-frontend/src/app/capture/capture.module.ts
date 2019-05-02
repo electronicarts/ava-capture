@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2017 Electronic Arts Inc. All Rights Reserved 
+// Copyright (c) 2018 Electronic Arts Inc. All Rights Reserved 
 //
 
 import { NgModule }      from '@angular/core';
@@ -16,13 +16,13 @@ import { SessionNameComponent }  from './sessionname.component';
 import { TimerDisplayComponent }  from './timer-display.component';
 import { ZoomViewComponent }  from './zoomview.component';
 import { CameraParameterValueComponent }  from './cameraparameter.component';
-import { SummaryComponent }  from './summary.component';
+import { SummaryComponent, SortBy }  from './summary.component';
 import { CapturePageSelect } from './../capture/capture_select';
 
 @NgModule({
   imports:      [ BrowserModule, RouterModule, FormsModule, CommonModule ],
   declarations: [ LiveCapturePage, LightstageControlPage, ImageZoomComponent, SessionNameComponent, 
-    TimerDisplayComponent, ZoomViewComponent, CameraParameterValueComponent, SummaryComponent, CapturePageSelect ],
+    TimerDisplayComponent, ZoomViewComponent, CameraParameterValueComponent, SummaryComponent, SortBy, CapturePageSelect ],
   bootstrap:    [ LiveCapturePage ]
 })
 export class CaptureModule { }

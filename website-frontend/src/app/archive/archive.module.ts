@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2017 Electronic Arts Inc. All Rights Reserved 
+// Copyright (c) 2018 Electronic Arts Inc. All Rights Reserved 
 //
 
 import { NgModule }      from '@angular/core';
@@ -8,7 +8,7 @@ import { RouterModule } from '@angular/router';
 import { FormsModule }   from '@angular/forms';
 
 import { ArchivesPage }  from './archive-by-session';
-import { ArchiveSessionPage }  from './archive-session';
+import { ArchiveSessionPage, NFirstPipe }  from './archive-session';
 import { ArchiveProjectsPage }  from './archive-projects';
 import { ArchiveByProjectPage }  from './archive-by-project';
 import { CreateTrackingPage }  from './create-tracking';
@@ -28,7 +28,7 @@ import { SetFrameDialog }  from './set-frame-dialog';
 @NgModule({
   imports:      [ BrowserModule, FormsModule, RouterModule, JobsListModule, CommonModule ],
   declarations: [ ArchivesPage, ArchiveSessionPage, ArchiveByProjectPage, ArchiveProjectsPage, 
-                  CreateTrackingPage, VideoPlaceholder, FrameTimeDisplay, 
+                  CreateTrackingPage, VideoPlaceholder, FrameTimeDisplay, NFirstPipe,
                   ReviewMenuPage, ReviewProjectPage, ReviewSessionPage, SetFrameDialog ],
   bootstrap:    [ ArchivesPage ]
 })

@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2017 Electronic Arts Inc. All Rights Reserved 
+// Copyright (c) 2018 Electronic Arts Inc. All Rights Reserved 
 //
 
 // http://stackoverflow.com/questions/31490713/iterate-over-typescript-dictionary-in-angular-2

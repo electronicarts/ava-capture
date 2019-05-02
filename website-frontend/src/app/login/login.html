@@ -10,41 +10,53 @@
         
 				<div class="section-form">
 				
-					<div style="font-size: 200%;">
+					<div style="font-size: 200%; text-align:center; margin-bottom:10px;">
 						Login to Ava
-					</div>
-					<div>
-						Use your EA accout username (if your email address is not @ea.com, please enter your full email address) and your account password.
 					</div>
 					
 					<div class="login-error-banner" *ngIf="login_failed_message">
 					  Login failed! Please try again
 					</div>
 					
-					<form            
-					  #f="ngForm"
-					  (ngSubmit)="onSubmit(f)"
-					  >
-					  <div class="form-group">
-						<input autofocus type="text" class="form-control" id="usrname" name="usrname" placeholder="Username" [(ngModel)]="username" required>
-					  </div>
-					  <div class="form-group">
-						<input class="form-control" id="pswd" name="pswd" type="password" placeholder="Password" [(ngModel)]="password" required>
-					  </div>
-					  <div class="form-group">
-					    <button type="submit" class="btn btn-wide" [disabled]="!f.valid">Login</button>
-					  </div>
+					<div style="width: 100%; display: table;">
+						<div style="display: table-row">
+								<div *ngIf="use_ldap" style="width: 50%; display: table-cell;">
+								
+									<form #f="ngForm" (ngSubmit)="onSubmit(f)">
+										<div style="font-size: 10px;">
+											Username
+										</div>
+										<div class="form-group" style="margin-top:8px;">
+											<input autofocus type="text" class="form-control" id="usrname" name="usrname" placeholder="Username" [(ngModel)]="username" required>
+										</div>
+										<div class="form-group">
+											<input class="form-control" id="pswd" name="pswd" type="password" placeholder="Password" [(ngModel)]="password" required>
+										</div>
+										<div class="form-group">
+											<button type="submit" class="btn btn-wide" [disabled]="!f.valid">Sign in</button>
+										</div>
+									</form>
 
-					  <div style="margin-top:20px;">
-						  <a href="mailto:edanvoye@ea.com">Trouble with account?</a>
-					  </div>
+								</div>
+								<div *ngIf="use_oauth2" style="display: table-cell; vertical-align:middle; text-align:right;">
+								
+									<div class="form-group" style="margin-top:8px;">
+										<img style="cursor:pointer;" src="{{btn_google_signin_normal_web}}" alt="Sign in with Google" (click)="initiateGoogleAuth()">
+									</div>
 
-					</form>
+								</div>
+						</div>
+					</div>
+
+
+					<div style="margin-top:20px; font-size: 10px; text-align:center;">
+						<a href="mailto:{{support_email}}">Trouble with account?</a>
+					</div>
 				
 				</div>
 				
 				<div class="section-foot">
-					<div>2017 © SEED - Electronic Arts</div>
+					<div>2019 © SEED - Electronic Arts</div>
 					<img src="{{img_ea_logo}}">
 				</div>
 			</div>

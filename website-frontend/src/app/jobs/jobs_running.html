@@ -24,7 +24,7 @@
 
       <table class="table table-striped table-hover">
         <thead>
-        <tr>
+        <tr class="table-smallheader">
           <th>
             Id
           </th>
@@ -32,7 +32,7 @@
             Class
           </th>
           <th class="no-sort hidden-sm-down">
-            Created
+            
           </th>
           <th class="no-sort hidden-sm-down">
             Assigned to
@@ -41,7 +41,7 @@
             Status
           </th>
           <th class="no-sort">
-            Status Changed
+            Last Update
           </th>
         </tr>
         </thead>
@@ -51,22 +51,35 @@
             <td>{{farmjob.id}}</td>
             <td style="vertical-align:top;">
               <div class="fw-semi-bold">
-                <div style="display:inline-block; padding-right: 5px;"><a (click)="displayJobDetails(farmjob.id)"><i class="fa fa-plus-square-o"></i></a></div>
-                <div style="display:inline-block;"><job_label [minwidth]="'500px'" [show_link]="false" [job]="farmjob"></job_label></div>
+                <div style="display:inline-block;">
+                  <job_label (onJobDetails)="displayJobDetails($event)" [minwidth]="'500px'" [show_link]="false" [job]="farmjob"></job_label>
+                </div>
                 <span class="pull-right"><small>{{farmjob.progress}}</small></span>
               </div>
-              <div *ngIf="farmjob.ext_take_name"><small>Take:{{farmjob.ext_take_name}}</small></div>
-              <div *ngIf="farmjob.ext_scan_assets_name"><small>Scan:{{farmjob.ext_scan_assets_name}}</small></div>
-              <div *ngIf="farmjob.ext_tracking_assets_name"><small>Track:{{farmjob.ext_tracking_assets_name}}</small></div>
+              <div *ngIf="farmjob.ext_take_name"><small><a [routerLink]="['/app/pipeline/assets-by-project', farmjob.ext_take_prj_id]" fragment="take_{{farmjob.ext_take_id}}"><b>Take:</b> {{farmjob.ext_take_name}}</a></small></div>
+              <div *ngIf="farmjob.ext_scan_assets_name"><small><a [routerLink]="['/app/pipeline/assets-by-project', farmjob.ext_scan_assets_prj_id]" fragment="scan_{{farmjob.ext_scan_assets_id}}"><b>Scan:</b> {{farmjob.ext_scan_assets_name}}</a></small></div>
+              <div *ngIf="farmjob.ext_tracking_assets_name"><small><a [routerLink]="['/app/pipeline/assets-by-project', farmjob.ext_tracking_assets_prj_id]" fragment="track_{{farmjob.ext_tracking_assets_id}}"><b>Track:</b> {{farmjob.ext_tracking_assets_name}}</a></small></div>
             </td>
             <td>
-              <div>{{farmjob.created | timeago}} by {{farmjob.created_by}}</div></td>
+                <div *ngIf="(farmjob.status=='success' || farmjob.status=='failed') && farmjob.end_time">
+                    Finished: <b>{{farmjob.end_time | timeago}}</b><br>Duration: <b>{{farmjob.end_time | duration:farmjob.start_time}}</b>
+                </div>
+                <div *ngIf="farmjob.status=='running'">
+                    Running for: <b>{{farmjob.start_time | duration}}</b> 
+                </div>
+                <div *ngIf="farmjob.status=='waiting'">
+                    Waiting for: <b>{{farmjob.start_time | duration}}</b> 
+                </div>
+                <div *ngIf="farmjob.status=='ready'">
+                    Created: {{farmjob.created | timeago}}
+                </div>
+            </td>
             <td>{{farmjob.node?.machine_name}}</td>
             <td class="width-150">
               <job_status [status]="farmjob.status"></job_status>
             </td>
             <td class="hidden-sm-down">
-              <div>{{farmjob.status_changed | timeago}}</div>
+              <div>{{farmjob.modified | timeago}}</div>
             </td>
           </tr>
 
@@ -76,16 +89,4 @@
 </div>
 </section>
 
-<div *ngIf="selected_job_id>0" class="bottominfopanel">
-    <div class="header">
-      <h4 style="display: inline-block; padding:3px;">
-          Job Details #{{selected_job_id}}
-      </h4>
-      <div style="float: right !important; ">
-        <button class="btn btn-close" aria-label="Close" (click)="hideJobDetails()">&times;</button>
-      </div>
-    </div>
-    <div class="content">
-      <job_details [jobid]="selected_job_id"></job_details>       
-    </div>
-</div>
+<job_infopanel [job_id]="selected_job_id" (onHideJobDetails)="selected_job_id=0"></job_infopanel>

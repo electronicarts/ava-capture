@@ -1,34 +1,59 @@
 <launch-job-dialog #launchjobdialog></launch-job-dialog>
 
-<section class="widget" widget *ngIf="project_data">
-  <header style="color:#000; background-color:#E0E0E0; padding:4px;">
-    <h4><span class="fw-semi-bold"><strong>Static Scan Assets</strong> for project <strong>{{project_data.name}}</strong></span></h4>
+<h4 *ngIf="loading"><i class="fa fa-spinner fa-pulse fa-fw"></i> Loading...</h4>
+
+<div class="section_select" style="text-align: right;"
+  [class.highlight]="filter_session.length>0 || filter_search.length>0"
+  >
+  <!-- Filter by Session: 
+  <select 
+    [disabled]="project_data?.sessions.length==0" 
+    [(ngModel)]="filter_session"
+    >
+      <option value="">-- All --</option>
+      <option *ngFor="let sess of project_data?.sessions; trackBy:trackById" value="{{sess.id}}">
+        {{sess.name}}
+      </option>
+    </select> -->
+  Filter by Name: 
+  <input class="form-control form-control-dark" 
+    type="text" [(ngModel)]="filter_search">
+    <button class="btn btn-xs" [disabled]="filter_session.length==0 && filter_search.length==0" (click)="filter_session=''; filter_search='';">Clear Filters</button>
+</div>
+
+<!-- Static Scan Assets -->
+<section class="widget" widget *ngIf="project_data?.staticscanasset_best.length>0">
+  <header style="color:#000; background-color:#64B4FF; padding:4px; margin-top:8px;">
+    <h4>Static Scan Assets</h4>
   </header>
 <div class="widget-body">
 
-  <div *ngFor="let asset of project_data.staticscanasset_related; trackBy:trackByAssetId">
-    <div style="color:#000; background-color:#F5F5F5; margin-bottom:4px; ; padding:4px;">
+  <div *ngFor="let asset of project_data.staticscanasset_best | FilterBySessionAndName:filter_session:filter_search; trackBy:trackByAssetId">
+    <div id="scan_{{asset.id}}" style="color:#000; background-color:#F5F5F5; margin-bottom:4px; ; padding:4px;">
       <div style="display: inline-block;">Scan: <b>{{asset.name}}</b> <small>#{{asset.id}}</small> 
-        <span *ngIf="asset.take_id"> Take: <b>{{asset.shot_name}} {{asset.take_name}}</b> <small>#{{asset.take_id}}</small>
+        <span *ngIf="asset.take_id"> Take: <b>{{asset.shot_name}}/{{asset.take_name}}</b> <small>#{{asset.take_id}}</small> <span *ngIf="scanAssetHasSequence(asset)">({{scanAssetDuration(asset) | number:'1.1-1'}}s)</span>
           <i *ngIf="asset.take_flag=='best'" class="fa fa-thumbs-o-up"></i>
           <i *ngIf="asset.take_flag=='bad'" class="fa fa-thumbs-o-down"></i>
           <i *ngIf="asset.take_flag=='calib'" class="fa fa-crosshairs"></i>
+          <i *ngIf="asset.take_flag=='colorchart'" class="fa fa-tachometer"></i>
         </span>
       </div>
       <div class="pull-right">
-        Launch Jobs: 
-        <button class="btn btn-xs btn-primary" (click)="createStaticAssetJob($event, asset.id, 'jobs.thumbnails.GenerateThumbnail', false)">Thumbnail</button>
-        <button class="btn btn-xs btn-primary" (click)="createStaticAssetJob($event, asset.id, 'jobs.lightstage.Prepare', true)">RawPrepare</button>
-        <button class="btn btn-xs btn-primary" (click)="createStaticAssetJob($event, asset.id, 'jobs.agisoft.CreateShotCalibration', false)">Shot Calib</button>
-        <button class="btn btn-xs btn-primary" (click)="createStaticAssetJob($event, asset.id, 'jobs.lightstage.PrepareNeutral', false)">MeshPrepare</button>
-        <button class="btn btn-xs btn-primary" (click)="onCreateJob($event, asset.id, 'jobs.lightstage.Geometry')">Geometry...</button>
-        <button class="btn btn-xs btn-primary" (click)="onCreateJob($event, asset.id, 'jobs.lightstage.Textures')">Textures...</button>
-        <button class="btn btn-xs btn-primary" (click)="createStaticAssetJob($event, asset.id, 'jobs.agisoft.CreateSessionCalibration', false)">Session Calib</button>
+        <!-- Launch Jobs -->
+        <div class="btn-group" *ngFor="let action of asset.allowed_actions">
+          <ng-template ngFor let-job [ngForOf]="action.jobs">
+            <button class="btn btn-xs" [class.btn-apply]="action.allow && !action.done" [class.btn-primary]="action.done" [disabled]="!action.allow" 
+              (click)="createStaticAssetJob($event, asset.id, job.class, job.tags, job.options)">
+              {{job.label}}<span *ngIf="job.options?.length>0">...</span>
+              <i *ngIf="!action.allow && !action.done" class="fa fa-exclamation-triangle" title="{{action.reason}}"></i>
+            </button>
+          </ng-template>
+        </div>
       </div>
     </div>
-    <div style="display: inline-block; vertical-align: top; width: 165px;">
+    <!-- <div style="display: inline-block; vertical-align: top; width: 165px;">
       <img *ngIf="asset.thumbnail_filename" width="160" height="auto" src="/static/thumb/{{asset.thumbnail_filename}}">
-    </div>
+    </div> -->
 
     <ng-template ngFor let-job [ngForOf]="asset.related_jobs" [ngForTrackBy]="trackById">
       <div *ngIf="job.status=='success' && job.image_filename" style="display: inline-block; vertical-align: top; width: 165px;">
@@ -37,28 +62,44 @@
     </ng-template>
 
     <div style="display: inline-block;">
-      <div><small>work_folder: {{asset.work_folder}}</small></div>
-      <div><small>calib_file: {{asset.calib_file}}</small></div>
-      <job_label_list [jobs]="asset.related_jobs"></job_label_list>
+      <div><small>Export: <copy-path [path]="asset.take_path" [width]="'300px'"></copy-path></small></div>
+      <div><small>Work: <copy-path [path]="asset.work_folder" [width]="'300px'"></copy-path></small></div>
+        
+      <!-- <div><small>Scan Path: <copy-path [path]="asset.work_folder" [width]="'300px'"></copy-path></small></div>
+      <div><small>Take Path: <copy-path [path]="asset.take_path" [width]="'300px'"></copy-path></small></div> -->
+      <!--<div><small>Calib: <copy-path [path]="asset.calib_file" [width]="'300px'"></copy-path></small></div>-->
+      <job_label_list (onJobDetails)="selected_job_id = $event;" [jobs]="asset.related_jobs"></job_label_list>
     </div>
   </div>
 
 </div>
 </section>
 
-<section class="widget" widget *ngIf="project_data">
-  <header style="color: #000; background-color:#E0E0E0; padding:4px;">
-    <h4><span class="fw-semi-bold"><strong>Tracking Assets</strong> for project <strong>{{project_data.name}}</strong></span></h4>
+<!-- Tracking Assets -->
+<section class="widget" widget *ngIf="project_data?.trackingassets_best.length>0">
+  <header style="color: #000; background-color:#64B4FF; padding:4px; margin-top:8px;">
+    <h4>Tracking Assets</h4>
   </header>
 <div class="widget-body">
 
-  <div *ngFor="let asset of project_data.trackingassets_related; trackBy:trackByAssetId">
-    <div style="color: #000; background-color:#F5F5F5; margin-bottom:4px; padding:4px;">Take: <b>{{asset.shot_name}} {{asset.take_name}}</b> <small>#{{asset.id}}</small>
+  <div *ngFor="let asset of project_data.trackingassets_best | FilterBySessionAndName:filter_session:filter_search; trackBy:trackByAssetId">
+    <div id="track_{{asset.id}}" style="color: #000; background-color:#F5F5F5; margin-bottom:4px; padding:4px;">Take: <b>{{asset.shot_name}}/{{asset.take_name}}</b> <small>#{{asset.id}}</small> <span *ngIf="trackingAssetIsValid(asset)">({{trackingAssetDuration(asset) | number:'1.1-1'}}s)</span>
+      <i *ngIf="asset.take_flag=='best'" class="fa fa-thumbs-o-up"></i>
+      <i *ngIf="asset.take_flag=='bad'" class="fa fa-thumbs-o-down"></i>
+      <i *ngIf="asset.take_flag=='calib'" class="fa fa-crosshairs"></i> 
+      <i *ngIf="asset.take_flag=='colorchart'" class="fa fa-tachometer"></i> 
+    
       <div class="pull-right">
-        Launch Jobs: 
-        <button class="btn btn-xs btn-primary" (click)="createTrackingAssetJob($event, asset.id, 'jobs.thumbnails.GenerateThumbnail', false, null)">Thumbnail</button>
-        <button class="btn btn-xs btn-primary" (click)="createTrackingAssetJob($event, asset.id, 'jobs.extractframes.ExtractFramesFromAVIJob', false, null)">Extract Frames</button>
-        <button class="btn btn-xs btn-primary" (click)="createTrackingAssetJob($event, asset.id, 'jobs.rc.RealityCaptureReconstructFrameRangeJob', true, 'lax1--FBLABS-04')">Reconstruct</button>
+        <!-- Launch Jobs -->
+        <div class="btn-group" *ngFor="let action of asset.allowed_actions">
+          <ng-template ngFor let-job [ngForOf]="action.jobs">
+            <button class="btn btn-xs" [class.btn-apply]="action.allow && !action.done" [class.btn-primary]="action.done" [disabled]="!action.allow" 
+              (click)="createTrackingAssetJob($event, asset.id, job.class, job.tags, job.options)">
+              {{job.label}}<span *ngIf="job.options?.length>0">...</span>
+              <i *ngIf="!action.allow && !action.done" class="fa fa-exclamation-triangle" title="{{action.reason}}"></i>
+            </button>
+          </ng-template>
+        </div>
       </div>
     </div>
     <div style="display: inline-block; vertical-align: top; width: 165px;">
@@ -66,13 +107,211 @@
         <source src="/static/thumb/{{asset.video_thumb}}" type="video/mp4">
       </video>         
     </div>
+
+    <ng-template ngFor let-job [ngForOf]="asset.related_jobs" [ngForTrackBy]="trackById">
+      <div *ngIf="job.status=='success' && job.image_filename" style="display: inline-block; vertical-align: top; width: 165px;">
+        <img width="160" height="auto" src="/static/thumb/{{job.image_filename}}">
+      </div>
+    </ng-template>
+      
     <div style="display: inline-block;">
-      <div><small>path: {{asset.take_export_path}}</small></div>
-      <div><small>calib_file: {{asset.calib_file}}</small></div>
-      <div><small>range: {{asset.start_time}}s to {{asset.end_time}}s</small></div>
-      <job_label_list [jobs]="asset.related_jobs"></job_label_list>
+      <div><small>Export: <copy-path [path]="asset.take_export_path" [width]="'300px'"></copy-path></small></div>
+      <div><small>Work: <copy-path [path]="asset.work_folder" [width]="'300px'"></copy-path></small></div>
+      <!--<div><small>Calib: <copy-path [path]="asset.calib_file" [width]="'300px'"></copy-path></small></div>-->
+      <div><small>range: {{asset.start_time | number:'1.1-1'}}s to {{asset.end_time | number:'1.1-1'}}s</small></div>
+      <job_label_list (onJobDetails)="selected_job_id = $event;" [jobs]="asset.related_jobs"></job_label_list>
     </div>
   </div>
 
 </div>
 </section>
+
+<!-- Single Frame Assets -->
+<section class="widget" widget *ngIf="project_data?.single_frame_takes.length>0">
+  <header style="color: #000; background-color:#64B4FF; padding:4px; margin-top:8px;">
+    <h4>Single Frame Assets</h4>
+  </header>
+<div class="widget-body">
+
+  <div *ngFor="let take of project_data.single_frame_takes | FilterBySessionAndName:filter_session:filter_search ; trackBy:trackByAssetId">
+    <div id="take_{{take.id}}" style="color: #000; background-color:#F5F5F5; margin-bottom:4px; padding:4px;">Take: <b>{{take.shot_name}}/{{take.name}}</b> <small>#{{take.id}}</small>
+
+      <i *ngIf="take.flag=='best'" class="fa fa-thumbs-o-up"></i>
+      <i *ngIf="take.flag=='bad'" class="fa fa-thumbs-o-down"></i>
+      <i *ngIf="take.flag=='calib'" class="fa fa-crosshairs"></i> 
+      <i *ngIf="take.flag=='colorchart'" class="fa fa-tachometer"></i> 
+
+      <div class="pull-right">
+        <!-- Launch Jobs -->
+        <div class="btn-group" *ngFor="let action of take.allowed_actions">
+          <ng-template ngFor let-job [ngForOf]="action.jobs">
+            <button class="btn btn-xs" [class.btn-apply]="action.allow && !action.done" [class.btn-primary]="action.done" [disabled]="!action.allow" 
+              (click)="createTakeJob($event, take.id, job.class, job.tags, job.options)">
+              {{job.label}}<span *ngIf="job.options?.length>0">...</span>
+              <i *ngIf="!action.allow && !action.done" class="fa fa-exclamation-triangle" title="{{action.reason}}"></i>
+            </button>
+          </ng-template>
+        </div>
+      </div>
+    </div>
+
+    <small *ngIf="take.cameras.length>0">          
+      <div style="text-align:center; display: inline-block; vertical-align:top;" *ngIf="take.frontal_camera">
+        <rotate_img [angle]="take.frontal_camera.rotation" [width]="160" [src]="'/static/thumb/'+take.frontal_camera.thumbnail_filename"></rotate_img>
+      </div>
+    </small>   
+
+    <ng-template ngFor let-job [ngForOf]="take.related_jobs" [ngForTrackBy]="trackById">
+      <div *ngIf="job.status=='success' && job.image_filename" style="display: inline-block; vertical-align: top; width: 165px;">
+        <img width="160" height="auto" src="/static/thumb/{{job.image_filename}}">
+      </div>
+    </ng-template>
+      
+    <div style="display: inline-block;">
+      <div><small>Export: <copy-path [path]="take.export_path" [width]="'300px'"></copy-path></small></div>
+      <div><small>Work: <copy-path [path]="take.work_folder" [width]="'300px'"></copy-path></small></div>
+      <job_label_list (onJobDetails)="selected_job_id = $event;" [jobs]="take.related_jobs"></job_label_list>
+    </div>
+  </div>
+
+</div>
+</section>
+
+<!-- Calibrations Static Scan Assets -->
+<!-- <section class="widget" widget *ngIf="project_data?.staticscanasset_calib.length>0">
+    <header style="color:#000; background-color:#64B4FF; padding:4px; margin-top:8px;">
+      <h4>Calibration Static Scan Assets</h4>
+    </header>
+  <div class="widget-body">
+  
+    <div *ngFor="let asset of project_data.staticscanasset_calib; trackBy:trackByAssetId">
+      <div id="scan_{{asset.id}}" style="color:#000; background-color:#F5F5F5; margin-bottom:4px; ; padding:4px;">
+        <div style="display: inline-block;">Scan: <b>{{asset.name}}</b> <small>#{{asset.id}}</small> 
+          <span *ngIf="asset.take_id"> Take: <b>{{asset.shot_name}}/{{asset.take_name}}</b> <small>#{{asset.take_id}}</small> <span *ngIf="scanAssetHasSequence(asset)">({{scanAssetDuration(asset) | number:'1.1-1'}}s)</span>
+            <i *ngIf="asset.take_flag=='best'" class="fa fa-thumbs-o-up"></i>
+            <i *ngIf="asset.take_flag=='bad'" class="fa fa-thumbs-o-down"></i>
+            <i *ngIf="asset.take_flag=='calib'" class="fa fa-crosshairs"></i>
+            <i *ngIf="asset.take_flag=='colorchart'" class="fa fa-tachometer"></i>
+          </span>
+        </div>
+        <div class="pull-right">
+          <div class="btn-group" *ngFor="let action of asset.allowed_actions">
+            <ng-template ngFor let-job [ngForOf]="action.jobs">
+              <button class="btn btn-xs" [class.btn-apply]="action.allow && !action.done" [class.btn-primary]="action.done" [disabled]="!action.allow" 
+                (click)="createStaticAssetJob($event, asset.id, job.class, job.tags, job.options)">
+                {{job.label}}<span *ngIf="job.options?.length>0">...</span>
+                <i *ngIf="!action.allow && !action.done" class="fa fa-exclamation-triangle" title="{{action.reason}}"></i>
+              </button>
+            </ng-template>
+          </div>
+        </div>
+      </div>
+      <div style="display: inline-block; vertical-align: top; width: 165px;">
+        <img *ngIf="asset.thumbnail_filename" width="160" height="auto" src="/static/thumb/{{asset.thumbnail_filename}}">
+      </div>
+  
+      <ng-template ngFor let-job [ngForOf]="asset.related_jobs" [ngForTrackBy]="trackById">
+        <div *ngIf="job.status=='success' && job.image_filename" style="display: inline-block; vertical-align: top; width: 165px;">
+          <img width="160" height="auto" src="/static/thumb/{{job.image_filename}}">
+        </div>
+      </ng-template>
+  
+      <div style="display: inline-block;">
+        <div><small>Work: <copy-path [path]="asset.work_folder" [width]="'300px'"></copy-path></small></div>
+        <job_label_list (onJobDetails)="selected_job_id = $event;" [jobs]="asset.related_jobs"></job_label_list>
+      </div>
+    </div>
+  
+  </div>
+  </section> -->
+  
+
+<!-- Calibrations Takes -->
+<section class="widget" widget *ngIf="project_data?.calibration_takes.length>0">
+  <header style="color: #000; background-color:#64B4FF; padding:4px; margin-top:8px;">
+    <h4>Calibration Takes</h4>
+  </header>
+<div class="widget-body">
+
+  <div *ngFor="let take of project_data.calibration_takes | FilterBySessionAndName:filter_session:filter_search; trackBy:trackById">
+    <div id="take_{{take.id}}" style="color: #000; background-color:#F5F5F5; margin-bottom:4px; padding:4px;">Take: <b>{{take.shot_name}}/{{take.name}}</b> <small>#{{take.id}}</small>
+      <div class="pull-right">
+        <!-- Launch Jobs -->
+        <div class="btn-group" *ngFor="let action of take.allowed_actions">
+          <ng-template ngFor let-job [ngForOf]="action.jobs">
+            <button class="btn btn-xs" [class.btn-apply]="action.allow && !action.done" [class.btn-primary]="action.done" [disabled]="!action.allow" 
+              (click)="createTakeJob($event, take.id, job.class, job.tags, job.options)">
+              {{job.label}}<span *ngIf="job.options?.length>0">...</span>
+              <i *ngIf="!action.allow && !action.done" class="fa fa-exclamation-triangle" title="{{action.reason}}"></i>
+            </button>
+          </ng-template>
+        </div>
+      </div>
+    </div>
+    <small *ngIf="take.cameras.length>0">          
+      <div style="text-align:center; display: inline-block; vertical-align:top;" *ngIf="take.frontal_camera">
+        <rotate_img [angle]="take.frontal_camera.rotation" [width]="160" [src]="'/static/thumb/'+take.frontal_camera.thumbnail_filename"></rotate_img>
+      </div>
+    </small>
+
+    <ng-template ngFor let-job [ngForOf]="take.related_jobs" [ngForTrackBy]="trackById">
+      <div *ngIf="job.status=='success' && job.image_filename" style="display: inline-block; vertical-align: top; width: 165px;">
+        <img width="160" height="auto" src="/static/thumb/{{job.image_filename}}">
+      </div>
+    </ng-template>
+      
+    <div style="display: inline-block;">
+      <div><small>Export: <copy-path [path]="take.export_path" [width]="'300px'"></copy-path></small></div>
+      <div><small>Work: <copy-path [path]="take.work_folder" [width]="'300px'"></copy-path></small></div>
+      <job_label_list (onJobDetails)="selected_job_id = $event;" [jobs]="take.related_jobs"></job_label_list>
+    </div>
+  </div>
+
+</div>
+</section>
+
+<!-- Colorchart Takes -->
+<section class="widget" widget *ngIf="project_data?.colorchart_takes.length>0">
+  <header style="color: #000; background-color:#64B4FF; padding:4px; margin-top:8px;">
+    <h4>Colorchart Takes</h4>
+  </header>
+<div class="widget-body">
+
+  <div *ngFor="let take of project_data.colorchart_takes | FilterBySessionAndName:filter_session:filter_search; trackBy:trackById">
+    <div id="take_{{take.id}}" style="color: #000; background-color:#F5F5F5; margin-bottom:4px; padding:4px;">Take: <b>{{take.shot_name}}/{{take.name}}</b> <small>#{{take.id}}</small>
+      <div class="pull-right">
+        <!-- Launch Jobs -->
+        <div class="btn-group" *ngFor="let action of take.allowed_actions">
+          <ng-template ngFor let-job [ngForOf]="action.jobs">
+            <button class="btn btn-xs" [class.btn-apply]="action.allow && !action.done" [class.btn-primary]="action.done" [disabled]="!action.allow" 
+              (click)="createTakeJob($event, take.id, job.class, job.tags, job.options)">
+              {{job.label}}<span *ngIf="job.options?.length>0">...</span>
+              <i *ngIf="!action.allow && !action.done" class="fa fa-exclamation-triangle" title="{{action.reason}}"></i>
+            </button>
+          </ng-template>
+        </div>
+      </div>
+    </div>
+    <small *ngIf="take.cameras.length>0">          
+      <div style="text-align:center; display: inline-block; vertical-align:top;" *ngIf="take.frontal_camera">
+        <rotate_img [angle]="take.frontal_camera.rotation" [width]="160" [src]="'/static/thumb/'+take.frontal_camera.thumbnail_filename"></rotate_img>
+      </div>
+    </small>
+
+    <ng-template ngFor let-job [ngForOf]="take.related_jobs" [ngForTrackBy]="trackById">
+      <div *ngIf="job.status=='success' && job.image_filename" style="display: inline-block; vertical-align: top; width: 165px;">
+        <img width="160" height="auto" src="/static/thumb/{{job.image_filename}}">
+      </div>
+    </ng-template>
+      
+    <div style="display: inline-block;">
+      <div><small>Export: <copy-path [path]="take.export_path" [width]="'300px'"></copy-path></small></div>
+      <div><small>Work: <copy-path [path]="take.work_folder" [width]="'300px'"></copy-path></small></div>
+      <job_label_list (onJobDetails)="selected_job_id = $event;" [jobs]="take.related_jobs"></job_label_list>
+    </div>
+  </div>
+
+</div>
+</section>
+
+<job_infopanel [job_id]="selected_job_id" (onHideJobDetails)="selected_job_id=0"></job_infopanel>

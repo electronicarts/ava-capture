@@ -1,48 +1,63 @@
 //
-// Copyright (c) 2017 Electronic Arts Inc. All Rights Reserved 
+// Copyright (c) 2018 Electronic Arts Inc. All Rights Reserved 
 //
 
 // user.service.ts
 // Service for User Authentication
 
 import { Injectable } from '@angular/core';
-import { Http, Headers, Response } from '@angular/http';
+import { Http, Headers } from '@angular/http';
+import { HttpClient } from '@angular/common/http';
 import { Router, NavigationStart } from '@angular/router';
-import { AuthHttp, tokenNotExpired, JwtHelper } from 'angular2-jwt';
+import { JwtHelperService } from '@auth0/angular-jwt';
+
+import { Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
+
+export class UserModel
+{
+  username: '';
+  first_name: '';
+  last_name: '';
+  gravatar: '';
+  email: '';
+  id: 0;
+}
+
+export class TokenModel
+{
+  token: '';
+}
 
 @Injectable()
 export class UserService {
   private loggedIn = false;
 
-  constructor(private http: Http, public authHttp: AuthHttp, private router: Router) {
+  constructor(private http: Http, public authHttp: HttpClient, private router: Router) {
     this.loggedIn = !!localStorage.getItem('auth_token');
+  }
 
-    router.events.subscribe((val) => {
-
-      if (val instanceof NavigationStart) {
-
-        // Every time the route changes, from a user action, check if the JWT Token needs a refresh
-        this.refresh_token_if_needed();
-
-      }
-
-    });
-
+  getCurrentUserID() {
+    if (this.loggedIn) {
+      return localStorage.getItem('last_user_id');
+    } else {
+      return '';
+    }
   }
 
   getUserListDirect() {
-    return this.authHttp.get('/accounts/all_users').map(res => res.json());
+    return this.authHttp.get('/accounts/all_users');
   }
 
-  getCurrentUser() {
-    return this.authHttp.get('/accounts/current_user').map(res => res.json());
+  getCurrentUser() : Observable<UserModel> {
+    return this.authHttp.get('/accounts/current_user').pipe(map(data => <UserModel>data));
   }
 
   refresh_token(current_token : String) {
 
     if (this.isLoggedIn()) {
 
-      // This is one of the few places we will not be using authHttp
+      // This is one of the few places we will not be using HttpClient
 
       let headers = new Headers();
       headers.append('Content-Type', 'application/json');
@@ -54,8 +69,10 @@ export class UserService {
           JSON.stringify({ token : current_token }),
           { headers }
         )
-        .map(res => res.json())
-        .map((res) => {
+        .pipe(
+          map(res => res.json()),
+          map(data => <TokenModel>data),
+          map((res) => {
           if (res.token) {
             localStorage.setItem('auth_token', res.token);
             this.loggedIn = true;
@@ -64,7 +81,7 @@ export class UserService {
             this.logout();
             return false;
           }
-        });
+        }));
     }
 
   }
@@ -80,7 +97,7 @@ export class UserService {
       var token = localStorage.getItem('auth_token');
       if (token != null) {
 
-        var jwtHelper = new JwtHelper();
+        var jwtHelper = new JwtHelperService();
         var secondsOffset = 3600 / 2; // Number of seconds until the Token will expire
 
         if (jwtHelper.isTokenExpired(token, secondsOffset)) {
@@ -91,15 +108,28 @@ export class UserService {
             result => {},
             err => {}
           );
-
         }
       }
-
     }
-
   }
 
-  login(username : String, password : String) {
+  set_token(username, token) {
+
+    localStorage.setItem('auth_token', token);
+    localStorage.setItem('last_user_id', username);
+
+    if (!this.isLoggedIn()) {
+      console.log('ERROR: Received new JWT token from /api-token-auth but it is already expired. Check server/client time not synchronized.');
+      this.logout();
+      return false;
+    }
+
+    this.loggedIn = true;
+
+    return true;
+  }
+
+  login(username : string, password : string) {
 
     // This is one of the few places we will not be using authHttp
 
@@ -113,28 +143,32 @@ export class UserService {
         JSON.stringify({ username, password }),
         { headers }
       )
-      .map(res => res.json())
-      .map((res) => {
-        if (res.token) {
-          localStorage.setItem('auth_token', res.token);
-          this.loggedIn = true;
-          return true;
-        } else {
-          this.logout();
-          return false;
-        }
-      });
+      .pipe(
+        map(res => res.json()),
+        map(data => <TokenModel>data),
+        map((res) => {
+          if (res.token) {
+            return this.set_token(username, res.token);
+          } else {
+            this.logout();
+            return false;
+          }
+        }));
   }
 
   logout() {
-    this.http.get('/accounts/logout').subscribe();
 
     localStorage.removeItem('auth_token');
+    localStorage.removeItem('last_user_id');
     this.loggedIn = false;
+
+    this.http.get('/accounts/logout').subscribe();
   }
 
   isLoggedIn() {
-    return tokenNotExpired('auth_token'); // JWT
+    const jwtHelper = new JwtHelperService();
+    const token = localStorage.getItem('auth_token');    
+    return !jwtHelper.isTokenExpired(token);
   }
 }
 

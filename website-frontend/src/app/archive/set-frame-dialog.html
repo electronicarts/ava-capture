@@ -1,5 +1,5 @@
-<!-- Modal Dialog to Launch jobs.lightstage.Geometry -->
-<div id="launchJobDialogModal" class="modal-dialog-container">
+<!-- Modal Dialog to Set Frame -->
+<div id="setFrameDialogModal" class="modal-dialog-container">
         <div class="modal-dialog">
         <div class="modal-dialog-header">
           <h1>Set Frame from Sequence for {{frame_name}}</h1>
@@ -24,7 +24,8 @@
         <div class="modal-dialog-footer">
               <button (click)="onSetFrame($event)" type="button" class="btn btn-wide btn-apply">OK</button>
               <button (click)="onCancel()" type="button" class="btn btn-wide btn-cancel">Cancel</button>
-        </div>
+              <button *ngIf="asset_type=='scan'" (click)="onClear($event)" type="button" class="btn btn-wide btn-destructive pull-right">Clear</button>
+            </div>
         </div>
       </div>
       

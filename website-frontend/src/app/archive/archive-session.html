@@ -1,24 +1,50 @@
-<div style="position:fixed; bottom:0; left:-200px; padding-left:200px; right:-200px; padding-right:200px; background-color:#d0d0d0; z-index:5;"
-     class="pt-3 offset-sm-5 offset-md-4 offset-lg-3 offset-xl-2">
+<div style="position:fixed; bottom:0; left:-200px; padding-left:200px; right:-200px; padding-right:200px; background-color:#d0d0d0; z-index:5; color:#000000;">
 
-  <div style="margin: 10px;">
-      <b>{{selected_takes.length}}</b> Selected
+  <div *ngIf="session_data" style="margin: 10px;">
+      <b>{{selected_takes.size}}</b> Selected ({{selected_size | dataSize}})
       <button class="btn btn-xs" (click)="onSelectAllTakes()">All</button>
       <button class="btn btn-xs" (click)="onSelectAllFromFlag('best')">All Best</button>
       <button class="btn btn-xs" (click)="onSelectAllFromFlag('bad')">All Bad</button>
       <button class="btn btn-xs" (click)="onSelectAllFromFlag('calib')">All Calib</button>
       <button class="btn btn-xs" (click)="onSelectNoneTakes()">None</button>
-      <button [disabled]="selected_takes.length<=0 || !session_data.frontal_cam_id" class="btn btn-s btn-primary" (click)="onExportSelected()"><i class="fa fa-sign-out"></i> Export Selected</button>
-      <button [disabled]="selected_takes.length<=0" class="btn btn-s btn-destructive" (click)="onRemoveSelected()"><i class="fa fa-trash"></i> Delete Selected</button>
+      <button [disabled]="selected_takes.size<=0 || !session_data.frontal_cam_id" class="btn btn-s btn-primary" (click)="onExportSelected()"><i class="fa fa-sign-out"></i> Export {{selected_takes.size}} Selected</button>
+      <button [disabled]="selected_takes.size<=0" class="btn btn-s btn-destructive" (click)="onRemoveSelected()"><i class="fa fa-trash"></i> Delete {{selected_takes.size}} Selected</button>
+      <button [disabled]="selected_takes.size<=0" class="btn btn-s btn-apply" (click)="onBestSelected()"><i class="fa fa-thumbs-o-up"></i> Best {{selected_takes.size}} Selected</button>
       
-      <span *ngIf="session_data">
-        Frontal Cam : 
-        <select (change)="onChangeFrontalCamera(session_data.frontal_cam_id)" [(ngModel)]="session_data.frontal_cam_id">
-          <option *ngFor="let cam_uid of all_cam_uid; trackBy:trackByString" value="{{cam_uid}}">{{cam_uid}}</option>
-        </select>
-      </span>
+      <div style="display: flex;">
+          <div style="margin-right:4px;">
+            Frontal Camera: 
+            <select (change)="onChangeFrontalCamera(session_data.frontal_cam_id)" [(ngModel)]="session_data.frontal_cam_id">
+              <option *ngFor="let cam_uid of all_cam_uid; trackBy:trackByString" value="{{cam_uid}}">{{cam_uid}}</option>
+            </select>
+          </div>
+    
+          <div style="margin-right:4px;">
+            Session Calibration: 
+            <select (change)="onChangeMasterCalib(session_data.session_master_calib_id)" [(ngModel)]="session_data.session_master_calib_id">
+              <option value='0'>None</option>
+              <option *ngFor="let take of session_data.project_special.calib_takes; trackBy:trackById" value="{{take.id}}">#{{take.id}} {{take.session_name}}/{{take.shot_name}}/{{take.name}}</option>
+            </select>   
+          </div>
+
+          <div style="margin-right:4px;">
+            Session ColorChart: 
+            <select (change)="onChangeMasterColorchart(session_data.session_master_colorchart_id)" [(ngModel)]="session_data.session_master_colorchart_id">
+              <option value='0'>None</option>
+              <option *ngFor="let take of session_data.project_special.colorchart_takes; trackBy:trackById" value="{{take.id}}">#{{take.id}} {{take.session_name}}/{{take.shot_name}}/{{take.name}}</option>
+            </select>   
+          </div>
+
+          <div style="margin-right:4px;">
+            4D Tracking Neutral: 
+            <select (change)="onChangeNeutralTake(session_data.session_neutral_take_id)" [(ngModel)]="session_data.session_neutral_take_id">
+              <option value='0'>None</option>
+              <option *ngFor="let take of session_data.project_special.bested_takes; trackBy:trackById" value="{{take.id}}">#{{take.id}} {{take.session_name}}/{{take.shot_name}}/{{take.name}}</option>
+            </select>     
+          </div>     
+      </div>
       
-      <a *ngIf="session_data" href="/archive/archive_session_export_json/{{session_data.id}}">Download Session JSON</a>
+      <a class="pull-right" *ngIf="session_data" href="/archive/archive_session_export_json/{{session_data.id}}">Download Session JSON</a>
   </div>
 </div>
 
@@ -29,12 +55,30 @@
     <h1>Export Selected Takes</h1>
   </div>
   <div class="modal-dialog-content">
-    <p>Export location (UNC path accessible from each of the nodes):</p>
-    <input size="80" type="text" [(ngModel)]="export_location">
+    <div>Export location (UNC path accessible from each of the nodes):</div>
+    <div><input size="70" type="text" [(ngModel)]="export_location"></div>
+    <div class="suggestion" *ngFor="let suggestion of export_location_suggestions">
+      <a (click)="export_location=suggestion;"><i class="fa fa-folder"></i> {{suggestion}}</a>
+    </div>
+    <div style="margin-top:8px;" *ngIf="export_missing_nodes.length>0">
+      <div><i class="fa fa-warning"></i> <b>Warning!</b> The following computers are not currently running the Job Client. You can still queue the Export, it will run as soon as these computers connect to the Job Server.</div>
+      <div style="overflow-y:scroll; max-height:100px;">
+          <div *ngFor="let computer of export_missing_nodes">
+              {{computer}}
+          </div>     
+      </div>
+    </div>
   </div>
   <div class="modal-dialog-footer">
-    <button (click)="onQueueExport()" type="button" class="btn btn-wide btn-apply"><i class="fa fa-sign-out"></i> Export</button>
-    <button (click)="onCancelExport()" type="button" class="btn btn-wide btn-cancel">Cancel</button>
+    <div *ngIf="exporting_count>0">
+        <i class="fa fa-spinner fa-pulse fa-fw"></i>
+        Exporting... ({{exporting_count}} remaining)
+    </div>
+    <div *ngIf="error_message">
+      {{error_message}}
+    </div>
+    <button [disabled]="exporting_count>0" (click)="onQueueExport()" type="button" class="btn btn-wide btn-apply"><i class="fa fa-sign-out"></i> Export</button>
+    <button [disabled]="exporting_count>0" (click)="onCancelExport()" type="button" class="btn btn-wide btn-cancel">Cancel</button>
   </div>
   </div>
 </div>
@@ -46,7 +90,7 @@
     <h1>Delete Selected Takes</h1>
   </div>
   <div class="modal-dialog-content">
-    <p><b>{{this.selected_takes.length}}</b> takes will be removed from the database, this cannot be undone. Are you sure?</p>
+    <p><b>{{this.selected_takes.size}}</b> takes will be removed from the database, this cannot be undone. Are you sure?</p>
   </div>
   <div class="modal-dialog-footer">
     <button (click)="onQueueDelete()" type="button" class="btn btn-wide btn-destructive"><i class="fa fa-trash"></i> DELETE</button>
@@ -55,72 +99,95 @@
   </div>
 </div>
 
-<h1 class="page-title">Session <span class="fw-semi-bold">{{session_data?.name}}</span> at {{session_data?.project_name}}</h1>
+<div *ngIf="!session_data">
+  Loading data...
+</div>
+  
+<h1 *ngIf="session_data" class="page-title">Session <span class="fw-semi-bold">{{session_data?.name}}</span> at {{session_data?.project_name}}</h1>
 
 <section *ngFor="let shot of session_data?.shots; trackBy:trackByShotId" class="widget" widget>
-  <header>
-    <h4>Shot <span class="fw-semi-bold">{{shot.name}}</span></h4>
+  <header class="shotheader">
+    <div>Shot <b>{{shot.name}}</b></div>
   </header>
   <div class="widget-body">
     <div *ngFor="let take of shot.takes; trackBy:trackByTakeId">
-        <h3><span *ngIf="!take.write_access" class="badge badge-danger"><i class="fa fa-lock"></i></span></h3> 
+      <h3><span *ngIf="!take.write_access" class="badge badge-danger"><i class="fa fa-lock"></i></span></h3> 
 
-        <div style="background-color: #606060; height: 1.6em; padding: 3px;">
-          <div style="display: inline-block;">
-            <input type="checkbox" name="takeSel" value="{{take.id}}" [disabled]="!take.write_access" [checked]="selected_takes.indexOf(take.id)>-1" (click)="toggleTakeSelection(take.id)"> 
-            <b>{{take.name}}</b>
-            <small>{{take.capture_time | date:'medium'}} <B>{{take.total_size | dataSize}}</B> DB#{{take.id}}</small>
+      <div style="background-color: #606060; padding: 4px;">
+        <div style="display: inline-block;">
+          <input type="checkbox" name="takeSel" value="{{take.id}}" [disabled]="!take.write_access" [checked]="selected_takes.has(take.id)" (click)="toggleTakeSelection(take.id)"> 
+          <img *ngIf="take.max_frame_count>1 && !take.is_burst" class="logo" src="{{icon_movie}}" height="20" alt="Sequence" title="{{take.max_frame_count}} frames sequence">
+          <img *ngIf="take.max_frame_count==1" class="logo" src="{{icon_single}}" height="20" alt="Single" title="Single Image">
+          <img *ngIf="take.max_frame_count>1 && take.is_burst && !take.is_scan_burst" class="logo" src="{{icon_burst}}" height="20" alt="Burst" title="Burst: {{take.max_frame_count}} frames">
+          <img *ngIf="take.max_frame_count>1 && take.is_scan_burst" class="logo" src="{{icon_scan}}" height="20" alt="Scan" title="Scan: {{take.max_frame_count}} frames">                
+          <b>{{take.name}}</b>
+          <small>{{take.capture_time | date:'medium'}} <B>{{take.total_size | dataSize}}</B> DB#{{take.id}}</small>
 
-            <label class="btn" [class.btn-apply]="take.flag=='best'">
-              <input type="checkbox" autocomplete="off" [checked]="take.flag=='best'" (click)="toggleTakeFlag($event, take, 'best');"> <i class="fa fa-thumbs-o-up"></i> Best
-            </label>
-            <label class="btn" [class.btn-destructive]="take.flag=='bad'">
-              <input type="checkbox" autocomplete="off" [checked]="take.flag=='bad'" (click)="toggleTakeFlag($event, take, 'bad');"> <i class="fa fa-thumbs-o-down"></i> Bad
-            </label>
-            <label class="btn" [class.btn-primary]="take.flag=='calib'">
-              <input type="checkbox" autocomplete="off" [checked]="take.flag=='calib'" (click)="toggleTakeFlag($event, take, 'calib');"> <i class="fa fa-crosshairs"></i> Calib
-            </label>             
-  
-          </div>
-          <div class="pull-right"><button class="btn btn-xs btn-primary" (click)="createTakeThumbnailJob($event, take.id)">Thumb</button></div>
+          <label class="btn" [class.btn-apply]="take.flag=='best'">
+            <input [disabled]="!take.write_access" type="checkbox" autocomplete="off" [checked]="take.flag=='best'" (click)="toggleTakeFlag($event, take, 'best');"> <i class="fa fa-thumbs-o-up"></i> Best
+          </label>
+          <label class="btn" [class.btn-destructive]="take.flag=='bad'">
+            <input [disabled]="!take.write_access" type="checkbox" autocomplete="off" [checked]="take.flag=='bad'" (click)="toggleTakeFlag($event, take, 'bad');"> <i class="fa fa-thumbs-o-down"></i> Bad
+          </label>
+          <label *ngIf="take.max_frame_count==1" class="btn" [class.btn-primary]="take.flag=='calib'">
+            <input [disabled]="!take.write_access" type="checkbox" autocomplete="off" [checked]="take.flag=='calib'" (click)="toggleTakeFlag($event, take, 'calib');"> <i class="fa fa-crosshairs"></i> Calib
+          </label>             
+          <label *ngIf="take.max_frame_count==1 || take.is_scan_burst" class="btn" [class.btn-primary]="take.flag=='colorchart'">
+            <input [disabled]="!take.write_access" type="checkbox" autocomplete="off" [checked]="take.flag=='colorchart'" (click)="toggleTakeFlag($event, take, 'colorchart');"> <i class="fa fa-tachometer"></i> Color Chart
+          </label>             
         </div>
-        <div *ngIf="take.export_path"><small>Path: {{take.export_path}}</small></div>
-                
-        <job_label_list [jobs]="take.related_jobs"></job_label_list>
+        <div class="pull-right"><button [disabled]="!take.write_access" class="btn btn-xs btn-primary" (click)="createTakeThumbnailJob($event, take.id)">Thumb</button></div>
+      </div>
 
-        <div class="table-responsive">
-        <table style="border-spacing: 2px; border-collapse: separate;"><tr>
-            <td *ngIf="take.video_thumb">
-              <div style="vertical-align: top;">
+      <div *ngIf="take.export_path"><small>Export: <copy-path [path]="take.export_path" [width]="'500px'"></copy-path></small></div>
 
-              <videoplaceholder *ngIf="take.video_thumb" [width]="180" [src]="'/static/thumb/' + take.video_thumb"></videoplaceholder>
-                
-              </div>
-              <div>
-                <button class="btn btn-xs btn-primary" [routerLink]=" ['/app/archive-session/create-tracking', take.id] "><i class="fa fa-file-video-o"></i> Create Tracking</button>
-              </div>
-            </td>
-            <td class="camera_image" style="padding: 4px;" bgcolor="#303030" valign="top" *ngFor="let camera of take.cameras; trackBy:trackByCameraId">
-                <div><small>
-                    {{camera.unique_id}}/{{camera.machine_name}}
-                    <br>
-                    {{camera.model}}
-                    <br>
-                    <input type="text" [value]="camera.folder" readonly />
-                    <br>
+      <div>
+        <div style="display:inline-block; margin:4px; vertical-align:top;" *ngIf="(take.max_frame_count==1 || take.is_scan_burst) && take.frontal_camera">
+          <rotate_img [angle]="take.frontal_camera.rotation" [width]="220" [src]="'/static/thumb/'+take.frontal_camera.thumbnail_filename"></rotate_img>
+        </div>
+
+        <div style="display:inline-block;">
+          
+          <job_label_list (onJobDetails)="selected_job_id = $event;" [jobs]="take.related_jobs"></job_label_list>
+
+          <div class="table-responsive">
+          <table style="border-spacing: 2px; border-collapse: separate;"><tr>
+              <td *ngIf="take.video_thumb">
+                <div style="vertical-align: top;">
+                  <videoplaceholder *ngIf="take.video_thumb" [width]="180" [src]="'/static/thumb/' + take.video_thumb"></videoplaceholder>                  
+                </div>
+                <div>
+                  <button class="btn btn-xs btn-primary" [routerLink]=" ['/app/archive-session/create-tracking', take.id] "><i class="fa fa-file-video-o"></i> Create Tracking</button>
+                </div>
+              </td>
+              <td class="camera_image" style="padding: 4px;" bgcolor="#303030" valign="top" *ngFor="let camera of take.cameras | NFirstPipe:(ifCompleteTakeShown(take.id)?1000:5); trackBy:trackByCameraId">
+                  <div>{{camera.unique_id}}/{{camera.machine_name}}</div>
+                  <div>{{camera.model}}</div>
+                  <div><input type="text" [value]="camera.folder" readonly /></div>
+                  <div>
                     <span class="badge badge-sm badge-default" [class.badge-success]="camera.using_sync"><i class="fa fa-plug"></i></span> 
                     <span class="badge badge-sm badge-default">{{camera.frame_count}} frames</span>
                     <span class="badge badge-sm badge-default" [class.badge-danger]="camera.dropped_frames>0">{{camera.dropped_frames}} dropped</span>
-                    <br>
-                    {{camera.width}}x{{camera.height}} {{camera.framerate}} fps
-                </small></div>
-                <rotate_img [angle]="camera.rotation" [width]="160" [src]="'/static/thumb/'+camera.thumbnail_filename"></rotate_img>
-            </td>
-        </tr></table>
+                  </div>
+                  <div>
+                    <span class="badge badge-sm badge-default">{{camera.width}}x{{camera.height}}</span>
+                    <span class="badge badge-sm badge-default">{{camera.framerate}}fps</span>
+                    <span class="badge badge-sm badge-default">{{camera.bitdepth}}bits</span>
+                    <span class="badge badge-sm badge-default">{{camera.exposure_ms | number:'1.1-1'}}ms</span>
+                  </div>
+                  <rotate_img [angle]="camera.rotation" [width]="160" [src]="'/static/thumb/'+camera.thumbnail_filename"></rotate_img>
+              </td>
+              <td *ngIf="take.cameras.length>5">
+                <a (click)="showCompleteTake(take.id)">Show all <b>{{take.cameras.length}}</b> cameras...</a>
+              </td>
+          </tr></table>
+          </div>
         </div>
-
+      </div>
     </div>
   </div>
 </section>
 
 <div style="height:140px;"></div>
+
+<job_infopanel [job_id]="selected_job_id" (onHideJobDetails)="selected_job_id=0"></job_infopanel>

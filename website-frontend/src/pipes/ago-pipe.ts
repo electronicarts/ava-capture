@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2017 Electronic Arts Inc. All Rights Reserved 
+// Copyright (c) 2018 Electronic Arts Inc. All Rights Reserved 
 //
 
 import { Pipe, PipeTransform } from '@angular/core';
@@ -29,8 +29,8 @@ export class TimeAgoPipe implements PipeTransform {
         return minutes + ' minutes ago';
       }
 
-      if (minutes > 0) {
-        return minutes + ' minute ago';
+      if (seconds > 30) {
+        return Math.round(seconds) + ' seconds ago';
       }
 
       return 'just now';

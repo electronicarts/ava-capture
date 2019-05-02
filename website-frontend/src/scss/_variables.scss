@@ -1,8 +1,9 @@
-/* Copyright (C) 2017 Electronic Arts Inc. All rights reserved. */
+/* Copyright (C) 2018 Electronic Arts Inc. All rights reserved. */
 
 $header-bg: #191919;
 
 $theme-light: #444;
+$theme-highlight: rgb(87, 82, 41);
 $theme-bg: #262626;
 $theme-text-default: #AAA;
 $theme-text-title: #CCC;
@@ -17,6 +18,12 @@ $notification-color-error: #FF5425;
 $notification-color-warning: #FF9510;
 $notification-color-info: #3AEFFF;
 $notification-color-default: #707070;
+
+$notification-color-success-dark: darken($notification-color-success, 10%);
+$notification-color-error-dark: darken($notification-color-error, 10%);
+$notification-color-warning-dark: darken($notification-color-warning, 10%);
+$notification-color-info-dark: darken($notification-color-info, 10%);
+$notification-color-default-dark: darken($notification-color-default, 10%);
 
 $button-color-accept: #5cb85c;
 $button-color-cancel: #ADADAD;

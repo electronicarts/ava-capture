@@ -5,10 +5,10 @@
         <job_status [status]="data.status"></job_status>
 
         <div class="btn-group">
-            <button [disabled]="!(data.status=='failed' || data.status=='success') || !data.write_access" type="button" class="btn btn-primary btn-xs" (click)="restartJob($event, data.id, false, false)">
+            <button [disabled]="!(data.status=='failed' || data.status=='success' || data.status=='waiting') || !data.write_access" type="button" class="btn btn-primary btn-xs" (click)="restartJob($event, data.id, false, false)">
               <i class="fa fa-repeat"></i> Restart
             </button>
-            <button [disabled]="!(data.status=='failed' || data.status=='success') || !data.write_access" type="button" class="btn btn-primary btn-xs dropdown-toggle" 
+            <button [disabled]="!(data.status=='failed' || data.status=='success' || data.status=='waiting') || !data.write_access" type="button" class="btn btn-primary btn-xs dropdown-toggle" 
                 onclick="dropdownToggle(this)" onblur="dropdownHide(this)">
                 <span class="caret"></span>
             </button>
@@ -17,6 +17,8 @@
                 <a class="dropdown-item" href="#" (click)="restartJob($event, data.id, false, true)">Restart on {{data.node?.machine_name}}</a>
                 <a class="dropdown-item" href="#" (click)="restartJob($event, data.id, true, false)">Clone and start</a>
                 <a class="dropdown-item" href="#" (click)="restartJob($event, data.id, true, true)">Clone and start on {{data.node?.machine_name}}</a>
+                <a class="dropdown-item" href="#" (click)="restartChildJobs($event, data.id, false)">Restart Failed Children</a>
+                <a class="dropdown-item" href="#" (click)="restartChildJobs($event, data.id, true)">Restart Failed Children (same machines)</a>
             </div>                
         </div>
 
@@ -29,29 +31,42 @@
         </button>
               
     </div>   
-    <h4><a (click)="gotoJob(data.id)">Job #{{data.id}} <b>{{data.job_class}}</b></a></h4>
-    
+    <h4>
+        <a (click)="gotoJob(data.id)">Job #{{data.id}} <b>{{data.job_class}}</b></a>
+        &nbsp;<a target="_blank" [routerLink]=" ['/app/job-output', data.id] "><i class="fa fa-file-text"></i></a>
+    </h4>
+    <div>
+        <div class="tag tagjob" *ngFor="let tag of data.tags">{{tag}}</div>
+    </div>
     <div><b>{{data.node?.machine_name}}</b> {{data.progress}}</div>
 
-    <div *ngIf="data.ext_take_name"><b>Take:</b> {{data.ext_take_name}}</div>
-    <div *ngIf="data.ext_scan_assets_name"><b>Scan:</b> {{data.ext_scan_assets_name}}</div>
-    <div *ngIf="data.ext_tracking_assets_name"><b>Track:</b> {{data.ext_tracking_assets_name}}</div>
+    <div *ngIf="data.ext_take_name"><a [routerLink]="['/app/pipeline/assets-by-project', data.ext_take_prj_id]" fragment="take_{{data.ext_take_id}}"><b>Take:</b> {{data.ext_take_name}}</a></div>
+    <div *ngIf="data.ext_scan_assets_name"><a [routerLink]="['/app/pipeline/assets-by-project', data.ext_scan_assets_prj_id]" fragment="scan_{{data.ext_scan_assets_id}}"><b>Scan:</b> {{data.ext_scan_assets_name}}</a></div>
+    <div *ngIf="data.ext_tracking_assets_name"><a [routerLink]="['/app/pipeline/assets-by-project', data.ext_tracking_assets_prj_id]" fragment="track_{{data.ext_tracking_assets_id}}"><b>Track:</b> {{data.ext_tracking_assets_name}}</a></div>
 
     <div>
         Created: {{data.created | date:"MM/dd/yy HH:mm"}} by {{data.created_by}}
-        Req:{{data.req_version}}
         <b>Priority:</b>{{data.priority}} 
-        <a (click)="changePriority(data, data.priority+1);"><i class="fa fa-plus-circle"></i></a>
-        <a (click)="changePriority(data, data.priority-1);"><i class="fa fa-minus-circle"></i></a>
+        <a class="prevent-select" (click)="changePriority($event, data, data.priority+1);"><i class="fa fa-plus-circle"></i></a>
+        <a class="prevent-select" (click)="changePriority($event, data, data.priority-1);"><i class="fa fa-minus-circle"></i></a>
         <span *ngIf="data.req_gpu">, GPU</span>
     </div>
-    <div>Last Updated: {{data.modified | date:"MM/dd/yy HH:mm"}}</div>
-    <div>Duration: {{data.end_time | duration:data.start_time}}</div>
+
+    <div>Last Updated: {{data.modified | timeago}} </div>
+    <div *ngIf="(data.status=='success' || data.status=='failed') && data.end_time">
+        Finished: <b>{{data.end_time | timeago}}</b> Duration: <b>{{data.end_time | duration:data.start_time}}</b>
+    </div>
+    <div *ngIf="data.status=='running'">
+        Running for: <b>{{data.start_time | duration}}</b> 
+    </div>
+    <div *ngIf="data.status=='waiting'">
+        Waiting for: <b>{{data.start_time | duration}}</b> 
+    </div>
 
     <div *ngIf="data.image_filename">
         <img width="512" height="auto" src="/static/thumb/{{data.image_filename}}">
     </div>
-
+    
     <div class="form-group" *ngIf="data.params">
         <textarea style="width:100%;" readonly class="form-control" rows="5" id="params">{{data.params}}</textarea>
     </div>
