@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2017 Electronic Arts Inc. All Rights Reserved 
+# Copyright (c) 2018 Electronic Arts Inc. All Rights Reserved 
 #
 
 """ava URL Configuration
@@ -21,6 +21,8 @@ from django.conf.urls import include,url
 from django.contrib import admin
 
 from rest_framework_jwt.views import obtain_jwt_token, refresh_jwt_token
+from . import metrics
+from .oauth2 import get_oauth2
 
 urlpatterns = [
     url(r'^accounts/', include('accounts.urls')),
@@ -28,6 +30,10 @@ urlpatterns = [
     url(r'^jobs/', include('jobs.urls')),
     url(r'^archive/', include('archive.urls')),
     url(r'^admin/', admin.site.urls),
+    url(r'^oauth2/', get_oauth2),
     url(r'^api-token-auth/', obtain_jwt_token),
     url(r'^api-token-refresh/', refresh_jwt_token),
+    url('', include('django_prometheus.urls')),
 ]
+
+metrics.setup()

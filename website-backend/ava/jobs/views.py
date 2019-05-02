@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2017 Electronic Arts Inc. All Rights Reserved 
+# Copyright (c) 2018 Electronic Arts Inc. All Rights Reserved 
 #
 
 import json
@@ -7,6 +7,9 @@ import traceback
 import logging
 import datetime
 import os
+import urllib2
+
+import aws
 
 from django.shortcuts import render
 from django.http import HttpResponse
@@ -23,13 +26,25 @@ from django.contrib.auth.models import User
 from common.uuid_utils import uuid_node_base36
 
 from rest_framework import viewsets, filters, mixins
-from serializers import FarmNodeSerializer, FarmJobSerializer, FarmJobDetailedSerializer, FarmNodeGroupSerializer
+from serializers import FarmNodeSerializer, FarmJobSerializer, FarmJobDetailedSerializer, FarmNodeGroupSerializer, FarmNodeSerializerDetails
 
 from django.core.mail import send_mail
 
-from ava.settings import FRONTEND_URL, ADMIN_EMAIL, BASE_DIR
+from ava.settings import FRONTEND_URL, ADMIN_EMAIL, BASE_DIR, SLACK_NOTIF_HOOK, NOTIFICATION_EMAIL
+
+from prometheus_client import Gauge, Counter
+
+from raven.contrib.django.raven_compat.models import client
+
+from ansi2html import Ansi2HTMLConverter
 
 g_logger = logging.getLogger('dev')
+
+metrics_client_cpu = Gauge('job_client_cpu', 'CPU Usage of each node client', ['machine_name'])
+metrics_client_last_seen = Gauge('job_client_last_seen', 'When was this job client las seen', ['machine_name'])
+metrics_job_success_count = Counter('jobs_success', 'Number of successful jobs', ['machine_name'])
+metrics_job_failed_count = Counter('jobs_failed', 'Number of successful jobs', ['machine_name'])
+metrics_client_nb_running = Gauge('job_client_nb_running', 'Number of jobs running on job client', ['machine_name'])
 
 @api_view(['POST'])
 @permission_classes((IsAuthenticated,))
@@ -44,7 +59,7 @@ def submit_test_job(request):
     job = FarmJob(job_class='jobs.test.DummyJob', created_by='submit_test_job', params=request.body, status = 'ready')
     job.save()
 
-    return HttpResponse('OK')
+    return HttpResponse()
 
 @api_view(['GET'])
 @permission_classes((IsAuthenticated,))
@@ -53,11 +68,79 @@ def node_detailed(request, node_id="0"):
     node = FarmNode.objects.get(pk=int(node_id))
 
     if not node:
-        return HttpResponse(status=404)
+        return HttpResponse(status=404)    
 
-    serializer = FarmNodeSerializer(node, many=False, context={'request':request})
+    serializer = FarmNodeSerializerDetails(node, many=False, context={'request':request})
 
     return JSONResponse(serializer.data)
+
+@api_view(['POST'])
+@permission_classes((IsAuthenticated,))
+def job_mesh(request, job_id="0"):
+
+    job_id = int(job_id)
+    job = FarmJob.objects.get(pk=job_id)
+
+    if not job:
+        return HttpResponse(status=404)
+
+    if not request.FILES:
+        return HttpResponse(status=500)
+
+    ext = os.path.splitext(request.FILES['file'].name)[1]
+
+    filename = 'j%08d_%s%s' % (job_id, uuid_node_base36(), ext)
+    filepath = os.path.join(BASE_DIR, 'static', 'thumb', filename)
+
+    # Write file to disk
+    try:
+        f = request.FILES['file']
+        with open(filepath, 'wb') as destination:
+            for chunk in f.chunks():
+                destination.write(chunk)                
+
+        job.mesh_filename = filename
+        job.save()
+
+    except Exception as e:
+        client.captureException()
+        return JSONResponse({'message':'%s' % e}, status=500)
+
+    return HttpResponse()
+
+@api_view(['GET', 'POST'])
+@permission_classes((IsAuthenticated,))
+def job_output(request, job_id="0"):
+    job_id = int(job_id)
+
+    job = FarmJob.objects.get(pk=job_id)
+    if not job:
+        return HttpResponse(status=404)
+
+    filepath = os.path.join(BASE_DIR, 'static', 'thumb', '%08d.output' % job_id)
+    if request.method == 'POST':
+        f = request.FILES['file']
+        #print('Writing %d bytes to %s' % (f.size,filepath))
+        with open(filepath, 'ab') as destination:
+            for chunk in f.chunks():
+                destination.write(chunk)
+        return HttpResponse()
+    if request.method == 'GET':
+        offset = int(request.GET.get('offset', 0))
+        length = int(request.GET.get('length', 1024*1024)) # max chunk size
+        # Return content of stored file
+        try:
+            with open(filepath, 'rb') as f:
+                f.seek(offset)
+                data = f.read(length)
+                try:
+                    conv = Ansi2HTMLConverter()
+                    html = conv.convert(data.decode('utf-8'), full=False)
+                    return JSONResponse({'content':html, 'length':len(data), 'status':job.status})
+                except:
+                    return JSONResponse({'content':data, 'length':len(data), 'status':job.status})
+        except Exception as e:
+            return HttpResponse('Exception: %s' % e, status=404)
 
 @api_view(['POST'])
 @permission_classes((IsAuthenticated,))
@@ -72,7 +155,9 @@ def job_image(request, job_id="0"):
     if not request.FILES:
         return HttpResponse(status=500)
 
-    filename = 'j%08d_%s.jpg' % (job_id, uuid_node_base36())
+    ext = os.path.splitext(request.FILES['file'].name)[1]
+
+    filename = 'j%08d_%s%s' % (job_id, uuid_node_base36(), ext)
     filepath = os.path.join(BASE_DIR, 'static', 'thumb', filename)
 
     # Write file to disk
@@ -86,9 +171,10 @@ def job_image(request, job_id="0"):
         job.save()
 
     except Exception as e:
-        return HttpResponse(e, status=500)
+        client.captureException()
+        return JSONResponse({'message':'%s' % e}, status=500)
 
-    return HttpResponse('OK')
+    return HttpResponse()
 
 @api_view(['GET'])
 @permission_classes((IsAuthenticated,))
@@ -102,6 +188,27 @@ def job_detailed(request, job_id="0"):
     serializer = FarmJobDetailedSerializer(job, many=False, context={'request':request})
 
     return JSONResponse(serializer.data)
+
+@api_view(['POST'])
+@permission_classes((IsAuthenticated,))
+def post_aws_start_instance(request):
+
+    if not 'node_id' in request.data:
+        return HttpResponse(status=500)
+
+    node = FarmNode.objects.get(pk=request.data['node_id'])
+    if not node:
+        return HttpResponse(status=404)
+    if not node.has_write_access(request.user):
+        return HttpResponse(status=403)
+
+    if node.aws_instance_id:
+        state = aws.start_instance(node.aws_instance_id, node.aws_instance_region)
+        if state:
+            node.aws_instance_state = state
+            node.save()
+
+    return HttpResponse()
 
 @api_view(['POST'])
 @permission_classes((IsAuthenticated,))
@@ -129,7 +236,52 @@ def post_reload_client(request):
         node.req_restart = True
         node.save()
 
-    return HttpResponse('OK')
+    return HttpResponse()
+
+def on_job_restart(job_id):
+    # When a job is restarted, clear output log
+    try:
+        filepath = os.path.join(BASE_DIR, 'static', 'thumb', '%08d.output' % job_id)
+        os.remove(filepath)
+    except:
+        pass
+
+@api_view(['POST'])
+@permission_classes((IsAuthenticated,))
+def restart_job_failed_child(request):
+
+    if not 'job_id' in request.data:
+        return HttpResponse(status=500)
+
+    use_same_machine = request.data['use_same_machine'] if 'use_same_machine' in request.data else False
+
+    # Find Job to be restarted
+    src_job = FarmJob.objects.get(pk=request.data['job_id'])
+
+    if not src_job:
+        return HttpResponse(status=404)
+
+    if not src_job.has_write_access(request.user):
+        return HttpResponse(status=403)
+
+    queryset = FarmJob.objects.filter(parent=src_job).filter(status='failed')
+    nb_restart = queryset.count()
+
+    if nb_restart>0:
+        for job in queryset:
+            on_job_restart(job.id)
+
+        if use_same_machine:
+            queryset.update(status='ready', exception=None, image_filename=None, mesh_filename=None, progress=None, start_time=None, end_time=None, modified=timezone.now())
+        else:
+            queryset.update(status='ready', node=None, exception=None, image_filename=None, mesh_filename=None, progress=None, start_time=None, end_time=None, modified=timezone.now())
+
+        src_job.status = 'waiting'
+        src_job.save()
+
+    g_logger.info('Child of Job #%d restarted' % (src_job.id))      
+
+    return HttpResponse()
 
 @api_view(['POST'])
 @permission_classes((IsAuthenticated,))
@@ -162,28 +314,41 @@ def restart_job(request):
                     ext_tracking_assets=src_job.ext_tracking_assets,
                     req_gpu=src_job.req_gpu,
                     priority=src_job.priority,
-                    status = 'ready')
+                    status = 'created')
+        job.save()
+        # copy tags in a second pass (required for ManyToMany)
+        job.tags.set(*src_job.tags.names(), clear=True)
+        job.status='ready'
         job.save()
 
         g_logger.info('Job #%d restarted as job #%d' % (src_job.id,job.id))      
 
     else:
 
+        # If some child are still running, refust to restart
+        if src_job.children.filter(Q(status='running')|Q(status='waiting')).count() > 0:
+            return JSONResponse({'message':'Error, child running'}, status=403)
+
         # Delete all child jobs 
         src_job.children.all().delete()
+
+        on_job_restart(src_job.id)
 
         # Update job status
         src_job.status = 'ready'
         src_job.exception = None
         src_job.image_filename = None
+        src_job.mesh_filename = None
         src_job.progress = None
+        src_job.start_time = None
+        src_job.end_time = None
         if not use_same_machine:
             src_job.node = None
         src_job.save()
 
         g_logger.info('Job #%d restarted' % (src_job.id))      
 
-    return HttpResponse('OK')
+    return HttpResponse()
 
 @api_view(['POST'])
 @permission_classes((IsAuthenticated,))
@@ -202,10 +367,10 @@ def delete_job(request):
         return HttpResponse(status=403)
 
     # If Job is ready, success or failed, we can simply delete it.
-    deleted = FarmJob.objects.filter(id=src_job.id).filter(status__in=['ready','success','failed']).delete()
-    if 'jobs.FarmJob' in deleted and deleted['jobs.FarmJob']>0:
+    deleted_count,deleted_by_type = FarmJob.objects.filter(id=src_job.id).filter(status__in=['ready','success','failed']).delete()
+    if 'jobs.FarmJob' in deleted_by_type and deleted_by_type['jobs.FarmJob']>0:
         g_logger.info('Job #%d deleted' % (src_job.id))     
-        return HttpResponse('OK')
+        return HttpResponse()
 
     return HttpResponse(status=404)
 
@@ -226,10 +391,10 @@ def kill_job(request):
         return HttpResponse(status=403)
 
     # Terminate job
-    killed = FarmJob.objects.filter(id=src_job.id, status='running').update(status='terminating')
+    killed = FarmJob.objects.filter(id=src_job.id, status='running').update(status='terminating', modified=timezone.now())
     if killed>0:
         g_logger.info('Job #%d killed' % (src_job.id))      
-        return HttpResponse('OK')
+        return HttpResponse()
 
     return HttpResponse(status=404)
  
@@ -278,13 +443,66 @@ def sendEmailToOwner(job, request):
             html_message = html
         )
     except:
-        pass                
-    
+        client.captureException()
+
+def slack_notification(message, color='good', extra_attributes={}):
+    if SLACK_NOTIF_HOOK:
+        try:            
+            # Slack channel
+
+            url = 'https://hooks.slack.com/services/%s' % SLACK_NOTIF_HOOK
+
+            data_att = {"color": color, 'text':message, 'fallback':message}
+            data_att.update(extra_attributes)
+            data_str = json.dumps( {'attachments': [data_att]} )
+
+            req = urllib2.Request(url, data_str, {'Content-Type': 'application/json', 'Content-Length': len(data_str)})
+            result = urllib2.urlopen(req).read()
+
+        except Exception as e:
+            client.captureException()
+            g_logger.error('Slack notification failed %s' % e)
+
+def job_notification(job, request):
+
+    # Send email notification if status is 'failed'
+    if job.status=='failed' and job.parent==None and NOTIFICATION_EMAIL:
+        sendEmailToOwner(job, request)
+
+    # Slack channel
+    if job.parent==None and not job.status=='waiting':
+
+        if job.status=='failed':
+            color = 'danger'
+        elif job.status=='success':
+            color = 'good'
+        else:
+            color = 'warning'
+        
+        notif_text = 'Job #%d %s: *%s* (%s)' % (job.id, job.job_class, job.status, job.created_by)
+        if job.ext_take:
+            notif_text += '\nTake: #%d %s' % (job.ext_take.id, job.ext_take.full_name())
+        if job.ext_scan_assets:
+            notif_text += '\nTake: #%d %s' % (job.ext_scan_assets.take.id, job.ext_scan_assets.take.full_name())
+            notif_text += '\nScanAsset: #%d %s' % (job.ext_scan_assets.id, job.ext_scan_assets.name)
+        if job.ext_tracking_assets:
+            notif_text += '\nTrackingAsset: #%d %s' % (job.ext_tracking_assets.id, job.ext_tracking_assets.take.full_name())       
+        if job.status=='failed':
+            notif_text += '\nException: ```%s```' % job.exception
+
+        data_att = {}
+        # Images on internal network doesn't work
+        #if job.image_filename:
+        #    data_att['image_url'] = request.build_absolute_uri('/static/thumb/' + job.image_filename)
+        if job.end_time:
+            data_att['ts'] = int(job.end_time.strftime('%s'))
+
+        slack_notification(notif_text, color=color, extra_attributes=data_att)
+
+
 def onJobChanged(job, request):
 
-    if job.status=='failed' and job.parent==None:
-        # Send email notification if status is 'failed'
-        sendEmailToOwner(job, request)
+    job_notification(job, request)
 
     if job.parent:
         UpdateParentJob(job.parent, request)
@@ -295,7 +513,7 @@ def make_sure_node_exists(nodename):
         return nodes[0]
     else:
         # Node does not exist, create it
-        node = FarmNode(ip_address="0.0.0.0", machine_name=nodename)
+        node = FarmNode(machine_name=nodename)
         node.save()
         return node
 
@@ -307,10 +525,19 @@ def cleanup_dead_jobs(request):
         lost_job.save()
         onJobChanged(lost_job, request)
 
+def or_list(q_list):
+    # returns a list of Q or'd toghether
+    first_q = q_list.pop()
+    for other_q in q_list:
+        first_q |= other_q
+    return first_q
+
 @api_view(['POST'])
 @permission_classes((IsAuthenticated,))
 def post_client_discover(request):
     if request.method == 'POST':
+
+        update_aws_status = False
         
         cleanup_dead_jobs(request) # TODO This could be on a schedule
 
@@ -326,11 +553,18 @@ def post_client_discover(request):
             # Node exists in database, update it
             node = nodes[0]
             node.ip_address = request.data['ip_address']
+
+            if node.aws_instance_state != 'running':
+                update_aws_status = True
+
             node.last_seen = timezone.now()
 
         else:
             # Node does not exist, create it
             node = FarmNode(ip_address=r['ip_address'], machine_name=r['machine_name'])
+            update_aws_status = True
+
+        metrics_client_last_seen.labels(node.machine_name).set_to_current_time()
 
         if 'system' in r:
             node.system = r['system']
@@ -346,10 +580,46 @@ def post_client_discover(request):
             node.req_restart = False
         if 'cpu_percent' in r:
             node.cpu_percent = r['cpu_percent']
-            
+            metrics_client_cpu.labels(node.machine_name).set(node.cpu_percent)
+        if 'mem_used' in r:
+            node.virt_percent = r['mem_used']
+        if 'os_version' in r:
+            node.os_version = r['os_version']
+
+        # AWS Cloud integration
+        if update_aws_status:
+            node.aws_instance_id, node.aws_instance_region, node.aws_instance_state = aws.instance_id_from_private_ip(node.ip_address)
+        else:
+            # AWS, check if this instance should be stopped for inactivity
+            if node.aws_instance_should_be_stopped():
+                nb_aws_running = FarmNode.objects.filter(aws_instance_state='running').count()
+                slack_notification('Stopping inactive AWS instance: *%s* (running:%d)' % (node.machine_name, nb_aws_running-1), color='warning')
+                node.aws_instance_state = aws.stop_instance(node.aws_instance_id, node.aws_instance_region)
+
+        if FarmJob.objects.filter(status='running', node=node).count()>0:
+            node.last_job_activity = timezone.now()
         node.code_version = r['code_version'] if 'code_version' in r else 0
+        node.git_version = r['git_version'] if 'git_version' in r else ''   
         node.status = r['status']
         node.save()
+
+        # Update tags on farm node, if client_tags are supplied, otherwise, keep tags in DB
+        if 'client_tags' in r:
+            tags = r.get('client_tags',[])
+            if node.aws_instance_id:
+                tags.append('aws')
+            if tags != node.tags:
+                with transaction.atomic():
+                    node.tags.set(*tags, clear=True) # don't need node.save()
+        else:
+            # client did not specify any tags, use the ones in DB
+            tags = node.tags.names()
+
+        # In order to filter jobs by tags, we start with the list of all possible tags, then 
+        # remove the tags supported by this node. What remains is the list of tags that
+        # cannot be fulfilled. Jobs with these tags should be filtered out.
+        all_possible_tags = FarmNode.tags.all().values_list('name', flat=True)
+        excluded_tags = [x for x in all_possible_tags if not x in tags]
 
         available_jobs = r['available_jobs'] if 'available_jobs' in r else []
         jobs_to_terminate = [job.id for job in FarmJob.objects.filter(status='terminating', node=node)]
@@ -357,10 +627,10 @@ def post_client_discover(request):
         # Update database from running and finished jobs (if they are not 'terminating')
         if 'running_jobs_progress' in r:
             for job_id,progress in r['running_jobs_progress']:
-                FarmJob.objects.filter(id=job_id).filter(~Q(status='terminating')).update(status='running', progress=progress)
+                FarmJob.objects.filter(id=job_id).filter(~Q(status='terminating')).filter(~Q(status='running') | ~Q(progress=progress)).update(status='running', progress=progress, modified=timezone.now())
+
         elif 'running_jobs' in r:
-            for job_id in r['running_jobs']:
-                FarmJob.objects.filter(id=job_id).filter(~Q(status='terminating')).update(status='running')
+            FarmJob.objects.filter(id__in=r['running_jobs']).filter(~Q(status='terminating')).filter(~Q(status='running')).update(status='running', modified=timezone.now())
 
         if 'finished_jobs' in r:
             for job in r['finished_jobs']:
@@ -371,6 +641,7 @@ def post_client_discover(request):
 
                     # Update job with new status
                     this_job = FarmJob.objects.get(pk=job['job_id'])
+                    this_job.progress = progress
                     if 'children' in job:
                         # Yield to children
                         for job_info in job['children']:
@@ -388,17 +659,22 @@ def post_client_discover(request):
                                 child = FarmJob(job_class=job_info[0], created_by=this_job.created_by, params=job_info[1], status = 'ready', parent=this_job)
                                 child.save()
 
-                        g_logger.info('Job #%s set to WAITING' % (job['job_id']))    
-                        FarmJob.objects.filter(id=job['job_id']).update(status='waiting', progress=progress)
+                        g_logger.info('Job #%s set to WAITING' % (job['job_id']))
+                        this_job.status = 'waiting'
                     elif 'success' in job and job['success']:
-                        g_logger.info('Job #%s set to SUCCESS' % (job['job_id']))    
-                        FarmJob.objects.filter(id=job['job_id']).update(status='success', progress=progress, end_time=timezone.now())
+                        g_logger.info('Job #%s set to SUCCESS' % (job['job_id']))
+                        this_job.status = 'success'
+                        this_job.end_time = timezone.now()
+                        metrics_job_success_count.labels(node.machine_name).inc()
                     else:
-                        g_logger.info('Job #%s set to FAILED' % (job['job_id']))    
-                        FarmJob.objects.filter(id=job['job_id']).update(status='failed', exception=job['exception'], progress=progress, end_time=timezone.now())
+                        g_logger.info('Job #%s set to FAILED' % (job['job_id']))
+                        this_job.status = 'failed'
+                        this_job.exception = job['exception']
+                        this_job.end_time = timezone.now()
+                        metrics_job_failed_count.labels(node.machine_name).inc()
 
                     # Update parent job, if it exists
-                    this_job.refresh_from_db()
+                    this_job.save()
                     onJobChanged(this_job, request)
 
                 except ObjectDoesNotExist:
@@ -414,7 +690,7 @@ def post_client_discover(request):
 
         data = {}
 
-        if node.status == 'accepting':
+        if node.status == 'accepting' and (node.aws_instance_id is None or node.aws_instance_state=='running'):
 
             data['jobs'] = []
             data['jobs_to_kill'] = []
@@ -424,36 +700,72 @@ def post_client_discover(request):
             if not node.req_restart:
                 try:
                     with transaction.atomic():
-                        if FarmJob.objects.filter(status='running', node=node).count() == 0: # If node is not doing anything                    
-                            
-                            if node.active:
-                                next_jobs = FarmJob.objects.select_for_update().filter(status='ready', req_version__lte=node.code_version).filter(Q(node=node) | Q(node=None)).filter(job_class__in=available_jobs)
-                            else:
-                                next_jobs = FarmJob.objects.select_for_update().filter(status='ready', req_version__lte=node.code_version).filter(Q(node=node)).filter(job_class__in=available_jobs)
 
+                        # Classes representing 2 different job channels, one for light jobs,  one for heavy jobs
+                        # These two channels will be executing concurrently on the machines
+                        light_job_classes = ['jobs.thumbnails.GenerateThumbnail', 
+                                             'jobs.test.SpeedTest']
+                        class Channel():                        
+                            def __init__(self):
+                                self.max_instances = 1
+                                self.nb_running = FarmJob.objects.filter(status='running', node=node).filter(self.filter_q()).count()
+                            def can_run(self):
+                                return self.nb_running < self.max_instances
+                        class LightChannel(Channel):
+                            def filter_q(self):
+                                return Q(job_class__in=light_job_classes)
+                        class HeavyChannel(Channel):
+                            def filter_q(self):
+                                return ~Q(job_class__in=light_job_classes)
+                        
+                        channels = [LightChannel(), HeavyChannel()]
+
+                        if True in [c.can_run() for c in channels]:
+                            
+                            # Query for all jobs we could run on this node
+                            if node.active:
+                                next_jobs = FarmJob.objects.select_for_update().filter(status='ready', req_version__lte=node.code_version).filter(Q(node=node) | Q(node=None)).filter(job_class__in=available_jobs).exclude(tags__name__in=excluded_tags)
+                            else:
+                                next_jobs = FarmJob.objects.select_for_update().filter(status='ready', req_version__lte=node.code_version).filter(Q(node=node)).filter(job_class__in=available_jobs).exclude(tags__name__in=excluded_tags)
+
+                            # Add filter for GPU 
                             if node.gpu_count <= 0:
                                 next_jobs = next_jobs.filter(req_gpu=False)
+
+                            # Sort jobs by priority
                             next_jobs = next_jobs.order_by('-priority')
+
+                            # Create filters for each channel
+                            filter_q_list = [c.filter_q() for c in channels if c.can_run()]
+                            if filter_q_list:
+
+                                # Apply filter for each channel
+                                next_jobs = next_jobs.filter(or_list(filter_q_list))
                             
-                            for next_job in next_jobs:
+                                # Go thru each job, check dependency, and exit as soon as one good job is found
+                                for next_job in next_jobs:
 
-                                # Check Job Dependencies (filter if that there are no dependencies that are not 'success')
-                                if next_job.dependencies.filter(~Q(status='success')).count()==0:
+                                    # Check Job Dependencies (filter if that there are no dependencies that are not 'success')
+                                    if next_job.dependencies.filter(~Q(status='success')).count()==0:
+                                        
+                                        # TODO This should be in the same query, otherwise we may be looping for no reason
                                     
-                                    # TODO This should be in the same query, otherwise we may be looping for no reason
-                                
-                                    g_logger.info('Job #%s RESERVED for %s' % (next_job.id, node.machine_name))    
-                                
-                                    # Send a single job to this machine
-                                    next_job.status = 'reserved'
-                                    next_job.node = node
-                                    next_job.exception = None
-                                    next_job.start_time = timezone.now()
-                                    next_job.save()
+                                        g_logger.info('Job #%s RESERVED for %s' % (next_job.id, node.machine_name))    
 
-                                    break
+                                        # Make sure there are no child on this job
+                                        next_job.children.all().delete()
+                                    
+                                        # Send a single job to this machine
+                                        next_job.status = 'reserved'
+                                        next_job.node = node
+                                        next_job.exception = None
+                                        next_job.start_time = timezone.now()
+                                        next_job.save()
+
+                                        break
 
                 except Exception as e:
+                    client.captureException()
                     g_logger.error('Scheduler failed %s' % e)
 
             # Send reserved jobs to node
@@ -472,6 +784,8 @@ def post_client_discover(request):
 
                 data['jobs_to_kill'].append(job_id)
 
+            metrics_client_nb_running.labels(node.machine_name).set(node.jobs.filter(status='running').count())
+
         return JSONResponse(data)
 
 class FarmGroupsViewSet(viewsets.ReadOnlyModelViewSet):
@@ -479,8 +793,30 @@ class FarmGroupsViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = FarmNodeGroupSerializer
 
 class FarmNodeViewSet(viewsets.ModelViewSet):
+
+    filter_backends = (filters.DjangoFilterBackend, )
+    filter_fields = ('status', 'active', )
+
     queryset = FarmNode.objects.all().order_by('status', 'machine_name')
     serializer_class = FarmNodeSerializer
+
+class RecentFarmJobsViewSet(viewsets.ModelViewSet):
+
+    filter_backends = (filters.DjangoFilterBackend, filters.SearchFilter,)
+    filter_fields = ('status', )
+    search_fields = ('job_class', 'node__machine_name', 'created_by')
+        
+    queryset = FarmJob.objects.filter(Q(parent=None) | Q(status='running')).order_by('-modified')
+    serializer_class = FarmJobSerializer
+
+class RecentFinishedFarmJobsViewSet(viewsets.ModelViewSet):
+
+    filter_backends = (filters.DjangoFilterBackend, filters.SearchFilter,)
+    filter_fields = ('status', )
+    search_fields = ('job_class', 'node__machine_name', 'created_by')
+        
+    queryset = FarmJob.objects.filter(Q(parent=None) & (Q(status='success') | Q(status='failed'))).order_by('-modified')
+    serializer_class = FarmJobSerializer
 
 class FarmJobsViewSet(viewsets.ModelViewSet):
 
@@ -488,5 +824,5 @@ class FarmJobsViewSet(viewsets.ModelViewSet):
     filter_fields = ('status', )
     search_fields = ('job_class', 'node__machine_name', 'created_by')
         
-    queryset = FarmJob.objects.filter(Q(parent=None) | Q(status='running')).order_by('-status_changed')
+    queryset = FarmJob.objects.order_by('-modified')
     serializer_class = FarmJobSerializer

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2017 Electronic Arts Inc. All Rights Reserved 
+# Copyright (c) 2018 Electronic Arts Inc. All Rights Reserved 
 #
 
 from __future__ import unicode_literals
@@ -26,6 +26,10 @@ class CaptureLocation(models.Model):
     display_histogram = models.BooleanField(default=False)
     bitdepth_avi = models.IntegerField(default=8)
     bitdepth_single = models.IntegerField(default=12)
+    image_format = models.CharField(max_length=8, default="raw")
+    wb_R = models.FloatField(default=1.37) # Defaults for Ximea color XiC cameras
+    wb_G = models.FloatField(default=1.0)
+    wb_B = models.FloatField(default=2.65)
 
     cur_project = models.ForeignKey(ArchiveProject, on_delete=models.SET_NULL, null=True, default=None, blank=True)
     cur_session = models.ForeignKey(ArchiveSession, on_delete=models.SET_NULL, null=True, default=None, blank=True)
@@ -55,6 +59,7 @@ class CaptureNode(models.Model):
     sync_found = models.BooleanField(default=False)
     drive_info = models.CharField(max_length=2048, default="")
     code_version = models.IntegerField(default=0)
+    build_version = models.CharField(max_length=64, default="")
 
     class Meta:
         permissions = (

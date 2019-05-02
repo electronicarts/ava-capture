@@ -16,6 +16,10 @@ if [ ! -d "$ROOT/ava/dist-dev" ]; then
   ln -s $ROOT/../website-frontend/dist-dev $ROOT/ava/dist-dev
 fi
 
+
+mkdir dev-database
+mkdir dev-thumb
+
 $ROOT/env/bin/python manage.py migrate
 $ROOT/env/bin/python manage.py initialsetup
 $ROOT/env/bin/python manage.py runserver 0.0.0.0:8000

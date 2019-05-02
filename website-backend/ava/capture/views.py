@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2017 Electronic Arts Inc. All Rights Reserved 
+# Copyright (c) 2018 Electronic Arts Inc. All Rights Reserved 
 #
 
 import datetime
@@ -7,16 +7,18 @@ import urllib2
 import json
 import time
 import os
+import signal
+import re
 import logging
 
-from ava.settings import BASE_DIR
+from ava.settings import BASE_DIR, DDNS_SERVER, DDNS_KEYFILE
 
 from base64 import b64encode, b64decode
 
 from rest_framework import viewsets
 
 from models import CaptureNode, Camera, CaptureLocation
-from serializers import CaptureNodeSerializer, CameraSerializer
+from serializers import CaptureNodeSerializer, CameraSerializer, CaptureLocationSerializer
 
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
@@ -41,10 +43,17 @@ from jobs.models import FarmJob, FarmNode
 
 from multiprocessing.pool import ThreadPool
 
+from raven.contrib.django.raven_compat.models import client
+
 g_pool = ThreadPool(32)
 g_logger = logging.getLogger('dev')
 
 DEFAULT_NODE_HTTP_TIMEOUT = 5
+
+class LocationsViewSet(viewsets.ModelViewSet):
+    queryset = CaptureLocation.objects.all().order_by('name')
+    serializer_class = CaptureLocationSerializer
+
 
 def has_write_access_location_id(request, location_id):
     return request.user.access_rights.filter(id=location_id, locationaccess__write_access=True).count()>0
@@ -52,11 +61,13 @@ def has_write_access_location_id(request, location_id):
 def has_write_access_node(request, node):
     return has_write_access_location_id(request, node.location.id)
 
-def create_session_shot(location_id, session_id, shot_name):
+def create_session_shot(loc, session_id, shot_name):
 
     # When a new take begins, create new entries in the database for the session and shot, if necessary
     changed = False
-    loc = CaptureLocation.objects.get(pk=location_id)
+
+    # Clean wierd characters
+    shot_name = re.sub('[^a-zA-Z0-9_-]', '', shot_name)
 
     # We are capturing on a specific session
     if session_id is not None and not loc.cur_session == session_id:
@@ -65,7 +76,7 @@ def create_session_shot(location_id, session_id, shot_name):
 
     if (not loc.cur_shot) or (not loc.cur_shot.name == shot_name):
         if not shot_name or shot_name=='-new-': # if shot is unnamed, make up a name from the index
-            shot_name = "Shot_%04d"%loc.cur_session.shots.count()
+            shot_name = "Shot_%03d"%loc.cur_session.shots.count()
         shot = ArchiveShot(name=shot_name, session=loc.cur_session)
         shot.save()
         loc.cur_shot = shot
@@ -74,17 +85,16 @@ def create_session_shot(location_id, session_id, shot_name):
     if changed:
         loc.save()
 
-def register_new_take(location_id, summary):
+def register_new_take(loc, summary, is_burst, is_scan):
     # Record information about this take in the database
     # Session and Shot should already be created and referenced in cur_session and cur_shot
-    loc = CaptureLocation.objects.get(pk=location_id)
     if loc.cur_project:
         if not loc.cur_session or not loc.cur_shot:
             print 'ERROR> Session and Shot should be created'
             return
 
         # Create Take
-        take = ArchiveTake(name='Take_%04d'%loc.cur_shot.next_take, shot=loc.cur_shot, sequence=loc.cur_shot.next_take)
+        take = ArchiveTake(name='Take_%04d'%loc.cur_shot.next_take, shot=loc.cur_shot, sequence=loc.cur_shot.next_take, is_burst=is_burst, is_scan_burst=is_scan)
         take.save()
 
         # Add cameras to take
@@ -93,53 +103,91 @@ def register_new_take(location_id, summary):
                 if 'cameras' in node['summary']:
 
                     # Locate capture node and cameras
-                    db_capture_nodes = CaptureNode.objects.filter(location=location_id, machine_name=node['machine_name'])
+                    db_capture_nodes = CaptureNode.objects.filter(location=loc, machine_name=node['machine_name'])
 
                     cam_index = 0
                     for cam in node['summary']['cameras']:
-                        
+
                         unique_id = cam['camera']['unique_id']
 
                         # clash (takeids are not unique across machines)
-                        filename = '%08d_%03d_%s_%s.jpg' % (take.id, cam_index, unique_id, uuid_node_base36())
-                        filepath = os.path.join(BASE_DIR, 'static', 'thumb', filename)
-                        try:
-                            base64_thumbnail = b64decode(cam['jpeg_thumbnail']+'='*10)
-                            with open(filepath, 'wb') as f:
-                                f.write(base64_thumbnail)
-                        except Exception as e:
-                            print e
+                        if 'jpeg_thumbnail' in cam:
+                            filename = '%08d_%03d_%s_%s.jpg' % (take.id, cam_index, unique_id, uuid_node_base36())
+                            filepath = os.path.join(BASE_DIR, 'static', 'thumb', filename)
+                            try:
+                                base64_thumbnail = b64decode(cam['jpeg_thumbnail']+'='*10)
+                                with open(filepath, 'wb') as f:
+                                    f.write(base64_thumbnail)
+                            except Exception as e:
+                                client.captureException()
+                                print e
 
-                        cam['thumb_filename'] = filename
+                            cam['thumb_filename'] = filename
 
                         all_files = []
-                        all_files.extend(cam['recorder']['filenames'])
-                        all_files.append(cam['meta']['meta_filename'])
+                        if 'recorder' in cam:
+                            all_files.extend(cam['recorder']['filenames'])
+                        if 'meta' in cam:
+                            all_files.append(cam['meta']['meta_filename'])
+                        if 'audio' in cam:
+                            all_files.append(cam['audio']['filename'])
 
                         # Find associated camera in db
-                        db_cam = Camera.objects.filter(node__location=location_id, node__machine_name=node['machine_name'], unique_id=unique_id)[0]
+                        db_cam = Camera.objects.filter(node__location=loc, node__machine_name=node['machine_name'], unique_id=unique_id)[0]
 
-                        camera = ArchiveCamera(
-                            take=take,
-                            unique_id=unique_id,
-                            machine_name=node['machine_name'],
-                            model=cam['camera']['model'],
-                            version=cam['camera']['version'],
-                            using_sync=cam['camera']['using_hardware_sync'],
-                            folder=cam['recorder']['filenames'][0],
-                            thumbnail_filename=filename,
-                            width=cam['camera']['width'],
-                            height=cam['camera']['height'],
-                            bitdepth=cam['meta']['bitdepth'],
-                            frame_count=cam['meta']['frame_count'],
-                            dropped_frames=cam['meta']['missing_frames'],
-                            total_size=cam['recorder']['total_size'],
-                            duration=cam['meta']['duration'],
-                            framerate=cam['camera']['framerate'],
-                            rotation=db_cam.rotation,
-                            all_files=';'.join(all_files)
-                        )
-                        camera.save()
+                        if 'recorder' in cam and 'meta' in cam:
+
+                            # New extended camar parameters
+                            exposure = 0.0
+                            if 'camera_params' in cam:
+                                exposure = cam['camera_params']['exposure']/1000.0 if 'exposure' in cam['camera_params'] else 0.0
+
+                            camera = ArchiveCamera(
+                                take=take,
+                                unique_id=unique_id,
+                                machine_name=node['machine_name'],
+                                model=cam['camera']['model'],
+                                version=cam['camera']['version'],
+                                using_sync=cam['camera']['using_hardware_sync'],
+                                folder=cam['recorder']['filenames'][0],
+                                thumbnail_filename=filename,
+                                width=cam['camera']['width'],
+                                height=cam['camera']['height'],
+                                bitdepth=cam['meta']['bitdepth'],
+                                exposure_ms=exposure,
+                                frame_count=cam['meta']['frame_count'],
+                                dropped_frames=cam['meta']['missing_frames'],
+                                total_size=cam['recorder']['total_size'],
+                                duration=cam['meta']['duration'],
+                                framerate=cam['camera']['framerate'],
+                                rotation=db_cam.rotation,
+                                all_files=';'.join(all_files)
+                            )
+                            camera.save()
+
+                        elif 'audio' in cam:
+
+                            camera = ArchiveCamera(
+                                take=take,
+                                unique_id=unique_id,
+                                machine_name=node['machine_name'],
+                                model=cam['camera']['model'],
+                                version=cam['camera']['version'],
+                                using_sync=False,
+                                folder=cam['audio']['filename'][0],
+                                thumbnail_filename=None,
+                                width=0,
+                                height=0,
+                                bitdepth=cam['audio']['bits_per_sample'],
+                                frame_count=cam['audio']['recorded_samples'],
+                                dropped_frames=0,
+                                total_size=0,
+                                duration=cam['audio']['duration'],
+                                framerate=cam['audio']['sample_rate'],
+                                rotation=0,
+                                all_files=';'.join(all_files)
+                            )
+                            camera.save()
 
                         cam_index = cam_index + 1
 
@@ -167,14 +215,17 @@ def post_toggle_using_sync(request):
                 camera.using_sync = not camera.using_sync
                 camera.save()
 
-                url = 'http://%s:8080/toggle_using_sync/%s/%s' % (camera.node.ip_address, camera.unique_id, camera.using_sync)
+                # Send new option to node
+                return_msgs = []
+                options = {
+                    "camera_params": [{
+                        "unique_id": camera.unique_id,
+                        "using_sync": camera.using_sync
+                    }]
+                    }            
+                apply_options_on_node((camera.node, json.dumps(options), return_msgs))
                 
-                try:
-                    urllib2.urlopen(url, data="", timeout=DEFAULT_NODE_HTTP_TIMEOUT).read()
-                except Exception as e:
-                    g_logger.error('post_toggle_using_sync %s: %s' % (camera.node.machine_name, e))                    
-
-                return HttpResponse('Ok')
+                return HttpResponse()
 
 @api_view(['POST'])
 @permission_classes((IsAuthenticated,))
@@ -190,9 +241,10 @@ def post_close_node(request):
                 try:
                     urllib2.urlopen(url, data="", timeout=DEFAULT_NODE_HTTP_TIMEOUT).read()
                 except Exception as e:
+                    client.captureException()
                     g_logger.error('%s: %s' % (url, e))                                   
                 
-    return HttpResponse('Ok')
+    return HttpResponse()
 
 @api_view(['POST'])
 @permission_classes((IsAuthenticated,))
@@ -209,7 +261,17 @@ def post_set_camera_rotation(request):
             cam.rotation = j['angle']
             cam.save()
 
-            return HttpResponse('Ok')
+            # Send new option to node
+            return_msgs = []
+            options = {
+                "camera_params": [{
+                    "unique_id": cam.unique_id,
+                    "image_rotation": cam.rotation
+                }]
+                }            
+            apply_options_on_node((cam.node, json.dumps(options), return_msgs))
+
+            return HttpResponse()
 
 @api_view(['POST'])
 @permission_classes((IsAuthenticated,))
@@ -228,18 +290,26 @@ def post_toggle_capturing(request):
                 try:
                     urllib2.urlopen(url, data="", timeout=DEFAULT_NODE_HTTP_TIMEOUT).read()
                 except Exception as e:
+                    client.captureException()
                     g_logger.error('%s: %s' % (url, e))                    
 
-                return HttpResponse('Ok')
+                return HttpResponse()
 
-            return HttpResponse('Camera %d not found' % j['camera_id'], status=404)
+            return JSONResponse({'message':'Camera %d not found' % j['camera_id']}, status=404)
 
     return HttpResponse(status=500)
 
 def parallel_all_prepare_multi1(node):
     try:
-        serialized_data = urllib2.urlopen('http://%s:8080/all_prepare_multi1' % node.ip_address, data="", timeout=20).read()
+
+        # Prepare a list of flags for cameras in this node
+        params = {
+            'cameras': [{'uniqueid': cam.unique_id, 'rotation': cam.rotation} for cam in node.cameras.all()]
+        }
+        
+        serialized_data = urllib2.urlopen('http://%s:8080/all_prepare_multi1' % node.ip_address, data=json.dumps(params), timeout=20).read()
     except Exception as e:
+        client.captureException()
         g_logger.error('parallel_all_prepare_multi1 %s: %s' % (node.machine_name, e))
 
     # TODO Check result from every node, otherwise, cancel the recording
@@ -248,6 +318,7 @@ def parallel_all_prepare_multi2(node):
     try:
         serialized_data = urllib2.urlopen('http://%s:8080/all_prepare_multi2' % node.ip_address, data="", timeout=DEFAULT_NODE_HTTP_TIMEOUT).read()
     except Exception as e:
+        client.captureException()
         g_logger.error('parallel_all_prepare_multi2 %s: %s' % (node.machine_name, e))
 
     # TODO Check result from every node, otherwise, cancel the recording
@@ -256,6 +327,7 @@ def parallel_all_start_multi(node):
     try:
         serialized_data = urllib2.urlopen('http://%s:8080/all_start_multi' % node.ip_address, data="", timeout=DEFAULT_NODE_HTTP_TIMEOUT).read()
     except Exception as e:
+        client.captureException()
         g_logger.error('parallel_all_start_multi %s: %s' % (node.machine_name, e))
 
     # TODO Check result from every node, otherwise, cancel the recording
@@ -269,11 +341,13 @@ def post_start_recording(request):
             location_id = j['location']
 
             if not has_write_access_location_id(request, location_id):
-                return HttpResponse(status=403) 
+                return HttpResponse(status=403)
+
+            loc = CaptureLocation.objects.get(pk=location_id)
 
             session_id = j['session_id'] if 'session_id' in j else None
             shot_name = j['shot'] if 'shot' in j else None
-            create_session_shot(location_id, session_id, shot_name)
+            create_session_shot(loc, session_id, shot_name)
 
             nodes = CaptureNode.objects.filter(location__id=location_id, online=True)
 
@@ -284,19 +358,21 @@ def post_start_recording(request):
             # Start Multi Image Capture
             g_pool.map(parallel_all_start_multi, nodes)
 
-            return HttpResponse('Ok')
+            return HttpResponse()
 
-def parallel_pause_sync(node):
+def parallel_stop_sync(node):
     try:
-        serialized_data = urllib2.urlopen('http://%s:8080/pause_sync' % node.ip_address, data="", timeout=DEFAULT_NODE_HTTP_TIMEOUT).read()
+        serialized_data = urllib2.urlopen('http://%s:8080/all_stop_sync' % node.ip_address, data="", timeout=DEFAULT_NODE_HTTP_TIMEOUT).read()
     except Exception as e:
-        g_logger.error('parallel_pause_sync %s: %s' % (node.machine_name, e))
+        client.captureException()
+        g_logger.error('parallel_stop_sync %s: %s' % (node.machine_name, e))
 
-def parallel_resume_sync(node):
+def parallel_resume_preview(node):
     try:
-        serialized_data = urllib2.urlopen('http://%s:8080/resume_sync' % node.ip_address, data="", timeout=DEFAULT_NODE_HTTP_TIMEOUT).read()
+        serialized_data = urllib2.urlopen('http://%s:8080/resume_preview' % node.ip_address, data="", timeout=DEFAULT_NODE_HTTP_TIMEOUT).read()
     except Exception as e:
-        g_logger.error('parallel_resume_sync %s: %s' % (node.machine_name, e))
+        client.captureException()
+        g_logger.error('parallel_resume_preview %s: %s' % (node.machine_name, e))
 
 def parallel_all_stop_recording(p):
 
@@ -314,7 +390,19 @@ def parallel_all_stop_recording(p):
             summary.append(node_summary)              
 
     except Exception as e:
+        client.captureException()
         g_logger.error('parallel_all_stop_recording %s: %s' % (node.machine_name, e))
+
+def parallel_send_message(p):
+
+    node, msg = p
+
+    try:
+        serialized_data = urllib2.urlopen('http://%s:8080/message' % node.ip_address, data=msg, timeout=DEFAULT_NODE_HTTP_TIMEOUT).read()
+
+    except Exception as e:
+        client.captureException()
+        g_logger.error('parallel_send_message %s: %s' % (node.machine_name, e))
 
 def add_rotation_info_to_cameras(summary):
     # Add rotation flag to all cameras (this info is in th DB, and does not come from the nodes)
@@ -323,8 +411,28 @@ def add_rotation_info_to_cameras(summary):
             try:
                 camera_summary['rotation'] = Camera.objects.filter(unique_id=camera_summary['camera']['unique_id'], node__machine_name=node_summary['machine_name'])[0].rotation
             except Exception as e:
+                client.captureException()
                 g_logger.error('Could not get rotation flag : %s' % (e))
     
+@api_view(['POST'])
+@permission_classes((IsAuthenticated,))
+def post_message(request):
+    if request.method == 'POST':
+        j = json.loads(request.body)
+        if 'location_id' in j and 'message' in j:
+            location_id = int(j['location_id'])
+            message = j['message']
+
+            if not has_write_access_location_id(request, location_id):
+                return HttpResponse(status=403) 
+
+            # Send generic message to all nodes
+            nodes = CaptureNode.objects.filter(location__id=location_id, online=True)
+            g_pool.map(parallel_send_message, [(n,message) for n in nodes])
+
+            return HttpResponse(status=200)     
+    
+    return HttpResponse(status=500)     
 
 @api_view(['POST'])
 @permission_classes((IsAuthenticated,))
@@ -341,10 +449,11 @@ def post_stop_recording(request):
             summary['result'] = 'OK'
             summary['nodes'] = []
 
+            loc = CaptureLocation.objects.get(pk=location_id)
             nodes = CaptureNode.objects.filter(location__id=location_id, online=True)
 
             # Pause Sync all nodes
-            g_pool.map(parallel_pause_sync, nodes)
+            g_pool.map(parallel_stop_sync, nodes)
 
             # Delay for all cameras to catch up for the last frame being transfered from the camera
             time.sleep(0.5)
@@ -353,29 +462,47 @@ def post_stop_recording(request):
             g_pool.map(parallel_all_stop_recording, [(n,summary['nodes']) for n in nodes])
 
             # Resume sync for preview on all nodes
-            g_pool.map(parallel_resume_sync, nodes)
+            g_pool.map(parallel_resume_preview, nodes)
 
             # Add rotation flag to all cameras (this info is in th DB, and does not come from the nodes)
             add_rotation_info_to_cameras(summary)
 
             # Store capture in archive
-            register_new_take(location_id, summary)
+            register_new_take(loc, summary, is_burst=False, is_scan=False)
 
             return JSONResponse(summary)
 
-def parallel_all_prepare_single(node):
+def parallel_all_prepare_single(t):
     try:
-        serialized_data = urllib2.urlopen('http://%s:8080/all_prepare_single' % node.ip_address, data="", timeout=30).read()
+        node,burst_length = t
+
+        # Prepare a list of flags for cameras in this node
+        params = {
+            'cameras': [{'uniqueid': cam.unique_id, 'rotation': cam.rotation} for cam in node.cameras.all()]
+        }
+
+        serialized_data = urllib2.urlopen('http://%s:8080/all_prepare_single/%d' % (node.ip_address, burst_length), data=json.dumps(params), timeout=30).read()
     except Exception as e:
+        client.captureException()
         g_logger.error('parallel_all_prepare_single %s: %s' % (node.machine_name, e))
 
     # TODO Check that we got a result from all computers, otherwise, cancel this recording and set error
     # TODO Send a cancel to all nodes?
 
+def parallel_all_prepare_single2(node):
+    try:
+        serialized_data = urllib2.urlopen('http://%s:8080/all_prepare_single2' % node.ip_address, data="", timeout=DEFAULT_NODE_HTTP_TIMEOUT).read()
+    except Exception as e:
+        client.captureException()
+        g_logger.error('parallel_all_prepare_single2 %s: %s' % (node.machine_name, e))
+
+    # TODO Check result from every node, otherwise, cancel the recording
+
 def parallel_all_start_single(node):
     try:
         serialized_data = urllib2.urlopen('http://%s:8080/all_start_single' % node.ip_address, data="", timeout=DEFAULT_NODE_HTTP_TIMEOUT).read()
     except Exception as e:
+        client.captureException()
         g_logger.error('parallel_all_start_single %s: %s' % (node.machine_name, e))
 
     # TODO If we did not get a reply from all computers, continue, but mark this recording as bad
@@ -396,6 +523,7 @@ def parallel_all_finalize_single(p):
             summary.append(node_summary)
 
     except Exception as e:
+        client.captureException()
         g_logger.error('parallel_all_finalize_single %s: %s' % (node.machine_name, e))
 
 @api_view(['POST'])
@@ -405,35 +533,68 @@ def post_record_single_image(request):
         j = json.loads(request.body)
         if 'location' in j:
             location_id = j['location']
+            burst_length = int(j['burst_length']) if 'burst_length' in j else 1
+            burst_is_scan = bool(j['burst_is_scan']) if 'burst_is_scan'in j else False
 
             if not has_write_access_location_id(request, location_id):
                 return HttpResponse(status=403) 
 
             nodes = CaptureNode.objects.filter(location__id=location_id, online=True)
 
-            session_id = j['session_id'] if 'session_id' in j else None
-            shot_name = j['shot'] if 'shot' in j else None
-            create_session_shot(location_id, session_id, shot_name)
-
             summary = {}
             summary['result'] = 'OK'
             summary['nodes'] = []
+            summary['timings'] = []
+
+            timings_start = time.time()
 
             # Prepare Single Image Capture
-            g_pool.map(parallel_all_prepare_single, nodes)
-            g_pool.map(parallel_all_prepare_multi2, nodes)
+            g_pool.map(parallel_all_prepare_single, zip(nodes, [burst_length]*len(nodes)))
+
+            summary['timings'].append( ('parallel_all_prepare_single', time.time() - timings_start) )
+            timings_start = time.time()
+
+            g_pool.map(parallel_all_prepare_single2, nodes)
+
+            summary['timings'].append( ('parallel_all_prepare_single2', time.time() - timings_start) )
+            timings_start = time.time()
 
             # Start Single Image Capture
             g_pool.map(parallel_all_start_single, nodes)
 
+            summary['timings'].append( ('parallel_all_start_single', time.time() - timings_start) )
+            timings_start = time.time()
+
             # Finalize Single Image Capture
             g_pool.map(parallel_all_finalize_single, [(n,summary['nodes']) for n in nodes])
+
+            summary['timings'].append( ('parallel_all_finalize_single', time.time() - timings_start) )
+            timings_start = time.time()
 
             # Add rotation flag to all cameras (this info is in th DB, and does not come from the nodes)
             add_rotation_info_to_cameras(summary)
 
+            summary['timings'].append( ('add_rotation_info_to_cameras', time.time() - timings_start) )
+            timings_start = time.time()
+
+            # Store in DB
+            loc = CaptureLocation.objects.get(pk=location_id)
+
+            # Create shot
+            session_id = j['session_id'] if 'session_id' in j else None
+            shot_name = j['shot'] if 'shot' in j else None
+            create_session_shot(loc, session_id, shot_name)
+
+            summary['timings'].append( ('create_session', time.time() - timings_start) )
+            timings_start = time.time()
+
             # Store capture in archive
-            register_new_take(location_id, summary)
+            register_new_take(loc, summary, is_burst=burst_length>1, is_scan=burst_is_scan and burst_length>1)
+
+            summary['timings'].append( ('register_new_take', time.time() - timings_start) )
+            timings_start = time.time()
+
+            #print summary['timings']
 
             return JSONResponse(summary)
 
@@ -443,86 +604,178 @@ def post_new_session(request, location_id="0"):
     if request.method == 'POST':
         location_id = int(location_id)
 
-        # Create new session at this location
-        g = request.user.access_rights.filter(id=location_id, locationaccess__write_access=True)
-        if not g:
+        # Check user permission
+        locs = request.user.access_rights.filter(id=location_id, locationaccess__write_access=True)
+        if not locs:
             return HttpResponse(status=403)
+        loc = locs[0]
 
-        loc = CaptureLocation.objects.get(pk=location_id)
-        if not loc:
-            return HttpResponse(status=404)
-
+        # Get parameters from request
         j = json.loads(request.body)
-
         if not 'name' in j:
             return HttpResponse(status=500)
-
         session_name = j['name']
+
+        # Clean weird characters
+        session_name = re.sub('[^a-zA-Z0-9_-]', '', session_name)
+
+        if not session_name:
+            return HttpResponse(status=500)
+
+        project = loc.cur_project
+
+        # Create or select project for this new session
+        if 'project_id' in j:
+            # Add session to existing project
+            project = ArchiveProject.objects.get(pk=int(j['project_id']))
+        if 'project_name' in j:
+            # Create new project
+            project = ArchiveProject(name=j['project_name'])
+            project.save()
 
         # Is the session name unique?
         i = 0
-        while ArchiveSession.objects.filter(name=session_name, project=loc.cur_project).count()>0:
+        while ArchiveSession.objects.filter(name=session_name, project=project).count()>0:
             session_name = '%s_%03d' % (j['name'], i)
             i = i + 1
 
         # Create New Session
-        session = ArchiveSession(name=session_name, project=loc.cur_project)
+        session = ArchiveSession(name=session_name, project=project)
         session.save()
 
-        g[0].cur_session = session
-        g[0].cur_shot = None
-        g[0].save()
+        # Create New Shot
+        shot = ArchiveShot(name='Shot_000', session=session)
+        shot.save()
 
+        # Save Location
+        loc = CaptureLocation.objects.get(pk=location_id)
+        loc.cur_project = project
+        loc.cur_session = session
+        loc.cur_shot = shot
+        loc.save()
+
+        # Return result
         result = {}
         result['session_name'] = session.name
         result['session_id'] = session.id
+        result['shot_name'] = shot.name
+        result['shot_id'] = shot.id
+        result['project_name'] = session.project.name
+        result['project_id'] = session.project.id
 
         return JSONResponse(result)
 
+def apply_set_roi(p):
+
+    node, body = p
+
+    try:
+        result = urllib2.urlopen('http://%s:8080/camera/%s/%s' % (node.ip_address, 'all', 'roi'), data=body, timeout=DEFAULT_NODE_HTTP_TIMEOUT).read()
+    except Exception as e:
+        client.captureException()
+        g_logger.error('post_set_roi %s: %s' % (node.machine_name, e))
+
+
 @api_view(['POST'])
 @permission_classes((IsAuthenticated,))
-def post_set_roi(request, camera_id="0"):
+def post_set_roi(request):
     if request.method == 'POST':
-        camera_id = int(camera_id)
-        camera = Camera.objects.get(pk=camera_id)
-        location_id = camera.node.location.id
-        write_access = request.user.access_rights.filter(id=location_id, locationaccess__write_access=True).count()>0
 
-        if not write_access:
-            return HttpResponse(status=403)
+        j = json.loads(request.body)
+        camera_id = int(j['camera_id'])
+        location_id = int(j['loc_id'])
 
-        # TODO Send request to node
-        # TODO Update ROI in DB for camera
+        if camera_id>0:
 
-        try:
-            print 'test'
-            result = urllib2.urlopen('http://%s:8080/camera/%s/%s' % (camera.node.ip_address, camera.unique_id, 'roi'), data=request.body, timeout=DEFAULT_NODE_HTTP_TIMEOUT).read()
-        except Exception as e:
-            g_logger.error('post_set_roi %s: %s' % (camera.node.machine_name, e))                            
+            # Set ROI on one single camera
+
+            camera = Camera.objects.get(pk=camera_id)
+            location_id = camera.node.location.id
+            write_access = request.user.access_rights.filter(id=location_id, locationaccess__write_access=True).count()>0
+            if not write_access:
+                return HttpResponse(status=403)
+
+            # TODO Update ROI in DB for camera
+
+            try:
+                result = urllib2.urlopen('http://%s:8080/camera/%s/%s' % (camera.node.ip_address, camera.unique_id, 'roi'), data=request.body, timeout=DEFAULT_NODE_HTTP_TIMEOUT).read()
+            except Exception as e:
+                client.captureException()
+                g_logger.error('post_set_roi %s: %s' % (camera.node.machine_name, e))
+
+        elif location_id>0:                      
+
+            # Set ROI on all cameras of this location
+
+            write_access = request.user.access_rights.filter(id=location_id, locationaccess__write_access=True).count()>0
+            if not write_access:
+                return HttpResponse(status=403)
+
+            nodes = CaptureNode.objects.filter(location=location_id, online=True)
+            g_pool.map(apply_set_roi, [(n, request.body) for n in nodes])
 
         return HttpResponse(status=200)
 
 @api_view(['POST'])
 @permission_classes((IsAuthenticated,))
-def post_reset_roi(request, camera_id="0"):
+def post_reset_roi(request):
     if request.method == 'POST':
-        camera_id = int(camera_id)
-        camera = Camera.objects.get(pk=camera_id)
-        location_id = camera.node.location.id
-        write_access = request.user.access_rights.filter(id=location_id, locationaccess__write_access=True).count()>0
 
-        if not write_access:
-            return HttpResponse(status=403)
+        j = json.loads(request.body)
+        camera_id = int(j['camera_id'])
+        location_id = int(j['loc_id'])
 
-        # TODO Send request to node
-        # TODO Update ROI in DB for camera
+        if camera_id>0:
 
-        try:
-            result = urllib2.urlopen('http://%s:8080/camera/%s/%s' % (camera.node.ip_address, camera.unique_id, 'roi'), data="", timeout=DEFAULT_NODE_HTTP_TIMEOUT).read()
-        except Exception as e:
-            g_logger.error('post_set_roi %s: %s' % (camera.node.machine_name, e))                            
+            # Reset ROI on one single camera
+
+            camera = Camera.objects.get(pk=camera_id)
+            location_id = camera.node.location.id
+            write_access = request.user.access_rights.filter(id=location_id, locationaccess__write_access=True).count()>0
+            if not write_access:
+                return HttpResponse(status=403)
+
+            # TODO Update ROI in DB for camera
+
+            try:
+                result = urllib2.urlopen('http://%s:8080/camera/%s/%s' % (camera.node.ip_address, camera.unique_id, 'roi'), data="", timeout=DEFAULT_NODE_HTTP_TIMEOUT).read()
+            except Exception as e:
+                client.captureException()
+                g_logger.error('post_reset_roi %s: %s' % (camera.node.machine_name, e))
+
+        elif location_id>0:                      
+
+            # Reset ROI on all cameras of this location
+
+            write_access = request.user.access_rights.filter(id=location_id, locationaccess__write_access=True).count()>0
+            if not write_access:
+                return HttpResponse(status=403)
+
+            nodes = CaptureNode.objects.filter(location=location_id, online=True)
+            g_pool.map(apply_set_roi, [(n, "") for n in nodes])
 
         return HttpResponse(status=200)
+
+def unique_shot_name(shot_name, session):
+
+    shot_name = re.sub('[^a-zA-Z0-9_-]', '', shot_name)
+
+    if not shot_name:
+        shot_name = 'Shot'
+
+    i = 0
+    shot_name_prefix = shot_name + '_'
+
+    m = re.match(r'(.+?)(\d+)$',shot_name)
+    if m:
+        shot_name_prefix = m.group(1)
+        i = int(m.group(2))
+
+    while ArchiveShot.objects.filter(name=shot_name, session=session).count()>0:
+        shot_name = '%s%03d' % (shot_name_prefix, i)
+        i = i + 1
+
+    return shot_name 
 
 @api_view(['POST'])
 @permission_classes((IsAuthenticated,))
@@ -530,14 +783,27 @@ def post_new_shot(request, location_id="0"):
     if request.method == 'POST':
         location_id = int(location_id)
 
-        # Create new session at this location
-        g = request.user.access_rights.filter(id=location_id, locationaccess__write_access=True)
-        if g:
-            g[0].cur_shot = None
-            g[0].save()
-            return HttpResponse(status=200)
-        else:
+        # security check
+        loc = request.user.access_rights.filter(id=location_id, locationaccess__write_access=True)
+        if not loc:
             return HttpResponse(status=403)
+        
+        # read option from request
+        j = json.loads(request.body)
+        if not 'name' in j:
+            return HttpResponse(status=500)
+        shot_name = j['name']
+
+        # Check if shot name is unique, otherwise, increment it
+        shot_name = unique_shot_name(shot_name, loc[0].cur_session)
+
+        # Create new shot
+        shot = ArchiveShot(name=shot_name, session=loc[0].cur_session)
+        shot.save()
+        loc[0].cur_shot = shot
+        loc[0].save()
+
+        return JSONResponse({'id':shot.id, 'name':shot.name})
 
 @api_view(['GET', 'POST'])
 @permission_classes((IsAuthenticated,))
@@ -576,6 +842,7 @@ def camera_parameter(request, location_id="0"):
             result = urllib2.urlopen('http://%s:8080/camera/%s/%s/%s' % (camera.node.ip_address, camera.unique_id, j['parameter_name'], j['value']), data="", timeout=DEFAULT_NODE_HTTP_TIMEOUT).read()
             return JSONResponse(result)
         except Exception as e:
+            client.captureException()
             g_logger.error('camera_parameter %s: %s' % (camera.node.machine_name, e))                    
 
 def apply_options_on_node(p):
@@ -586,6 +853,7 @@ def apply_options_on_node(p):
         serialized_data = urllib2.urlopen('http://%s:8080/options/' % (node.ip_address), data=body, timeout=DEFAULT_NODE_HTTP_TIMEOUT).read()
         msgs.append('Options set on %s\n' % node.ip_address)
     except Exception as e:
+        client.captureException()
         msgs.append('Error setting option on %s\n' % node.ip_address)
         g_logger.error('location_config %s: %s' % (node.machine_name, e))                    
 
@@ -635,6 +903,14 @@ def location_config(request, location_id="0"):
                 g[0].bitdepth_avi = int(j['bitdepth_avi'])
             if 'bitdepth_single' in j:
                 g[0].bitdepth_single = int(j['bitdepth_single'])
+            if 'image_format' in j:
+                g[0].image_format = j['image_format']
+            if 'wb_R' in j:
+                g[0].wb_R = float(j['wb_R'])
+            if 'wb_G' in j:
+                g[0].wb_G = float(j['wb_G'])
+            if 'wb_B' in j:
+                g[0].wb_B = float(j['wb_B'])
 
             # set options on all nodes
             nodes = CaptureNode.objects.filter(online=True, location__id=location_id)
@@ -642,7 +918,7 @@ def location_config(request, location_id="0"):
 
             g[0].save()
 
-        return HttpResponse('Ok ' + ' '.join(msgs))
+        return JSONResponse({'messages':msgs})
 
 @api_view(['GET'])
 @permission_classes((IsAuthenticated,))
@@ -700,6 +976,7 @@ def fetch_camera_details_from_node(n):
         n['camera_details'] = json.loads(serialized_data)
 
     except Exception as e:
+        client.captureException()
         g_logger.error('fetch_camera_details_from_node %s: %s' % (n['ip_address'], e))
 
 @api_view(['GET'])
@@ -774,6 +1051,10 @@ def cameras_detailed(request, location_id="0"):
     result['location']['show_histogram'] = loc.display_histogram
     result['location']['bitdepth_avi'] = loc.bitdepth_avi
     result['location']['bitdepth_single'] = loc.bitdepth_single
+    result['location']['image_format'] = loc.image_format
+    result['location']['wb_R'] = loc.wb_R
+    result['location']['wb_G'] = loc.wb_G
+    result['location']['wb_B'] = loc.wb_B    
     result['location']['hardware_sync_frequency'] = loc.hardware_sync_frequency  
     result['location']['pulse_duration'] = loc.pulse_duration
     result['location']['external_sync'] = loc.external_sync
@@ -857,11 +1138,13 @@ def node_discover(request):
     if nodes:
         # Node exists in database, update it
         node = nodes[0]
+        ip_has_changed = node.ip_address != request.data['ip_address']
         node.ip_address = request.data['ip_address']
         node.last_seen = timezone.now()
     else:
         # Node does not exist, create it
         node = CaptureNode(ip_address=request.data['ip_address'], machine_name=request.data['machine_name'])
+        ip_has_changed = True
 
     if 'sync_found' in request.data:
         node.sync_found = request.data['sync_found']
@@ -869,6 +1152,7 @@ def node_discover(request):
         node.os = request.data['os']
     node.online = True
     node.code_version = request.data['code_version'] if 'code_version' in request.data else 0
+    node.build_version = request.data['build_version'] if 'build_version' in request.data else ""
 
     if node.code_version < 1024:
         return JSONResponse({'Result':'avacapture.exe Version Too Old'}, status=426)
@@ -877,7 +1161,37 @@ def node_discover(request):
     if 'drives' in request.data:
         node.drive_info = json.dumps(request.data['drives'])
 
+    # If this is a new node and it does not have a location, add it to LOCAL
+    if not node.location:
+        try:
+            node.location = CaptureLocation.objects.get(name='local')
+        except:
+            pass
+
     node.save()
+
+    # If needed, update ava hosts file for DNS
+    if ip_has_changed and DDNS_SERVER:
+        import tempfile
+        import subprocess
+        f = tempfile.NamedTemporaryFile(delete=False)
+        try:
+            print 'Updating Dynamic DNS for all nodes'
+            content = 'server ' + DDNS_SERVER + '\n'
+            for item in CaptureNode.objects.filter(machine_name__contains='.ava.ea.com'):
+                content += ('update add ' + item.machine_name + ' 600 a ' + item.ip_address + '\n')
+            content += 'send' + '\n'
+            f.write(content)
+            f.close()
+
+            # Need to send SIGHUP to dnsmasq
+            cmd = ['nsupdate', '-k', DDNS_KEYFILE, f.name]
+            subprocess.call(cmd)
+
+        except:
+            g_logger.debug('Error updating Dynamic DNS')
+        finally:
+            os.unlink(f.name)
 
     # Update list of cameras 
     if 'cameras' in request.data:
@@ -907,7 +1221,11 @@ def node_discover(request):
             'display_overexposed' : node.location.display_overexposed,
             'display_histogram' : node.location.display_histogram,
             'bitdepth_avi' : node.location.bitdepth_avi,
-            'bitdepth_single' : node.location.bitdepth_single        
+            'bitdepth_single' : node.location.bitdepth_single,
+            'image_format' : node.location.image_format,
+            'wb_R' : node.location.wb_R,
+            'wb_G' : node.location.wb_G,
+            'wb_B' : node.location.wb_B,
         }
     else:
         return HttpResponse("Node not registered", status=403)
@@ -921,7 +1239,8 @@ def node_discover(request):
             lens_aperture_value=cam.lens_aperture, 
             exposure=cam.exposure, 
             gain=cam.gain,
-            using_sync=cam.using_sync) for cam in cameras]
+            using_sync=cam.using_sync,
+            image_rotation=cam.rotation) for cam in cameras]
 
         # TODO Camera roi
 

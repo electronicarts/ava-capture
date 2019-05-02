@@ -106,7 +106,7 @@ It is also possible to run the DEV server in a Django container in Windows.
 #### Prerequisites
 
 * Install Docker for Windows
-* Build frontend (see the ava-website-frontend project)
+* Build frontend (see the website-frontend project)
 
 #### Build the Docker image from GIT source
 

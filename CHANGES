@@ -32,3 +32,11 @@ Ava Server Frontend
     - Link to download the image in recording summary
 
 
+Ava Server Backend
+
+   - Support prometheus metrics
+   - Support raven exception reporting
+   - Support Slack notifications
+   - Support AWS farm nodes
+   - Support OAUTH2 Authentication
+   - Misc improvements
