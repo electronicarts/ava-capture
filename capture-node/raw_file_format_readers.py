@@ -7,11 +7,24 @@ import numpy as np
 
 import lz4.block as lz4block
 
-# Example Usage:
-#   reader = AvaSequenceFileReader('test.ava')
-#   for i in range(reader.frame_count()):
-#      img = reader.frame_as_cv2_sRGB_8bit(23)
-#      cv2.imwrite('test_%04d.jpg' % i, img)
+'''
+ Example Usage:
+ 
+   # This script extracts all frames of the recorded file test.ava and outputs them as JPG and TIF images.
+
+   from raw_file_format_readers import AvaSequenceFileReader
+
+   reader = AvaSequenceFileReader('test.ava')
+   for i in range(reader.frame_count()):
+     
+      img = reader.frame_as_cv2_sRGB_8bit(i)
+      cv2.imwrite('test_%04d.jpg' % i, img)        # Write 8bit sRGB image as JPG
+
+      img = reader.frame_as_cv2_LinearRGB_16bit(i)
+      cv2.imwrite('test_%04d.tif' % i, img)        # Write 16bit Linear RGB image as TIF
+
+
+'''
 
 def Linear_to_sRGB(image):
     ''' Image has to be in the 16 bit range (0-65535.0) '''
