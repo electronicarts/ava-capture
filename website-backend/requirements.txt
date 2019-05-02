@@ -13,7 +13,7 @@ djangorestframework-jwt==1.8.0
 python-ldap==2.4.41
 prometheus-client==0.2.0
 py-cpuinfo==0.2.3
-PyJWT==1.4.2
+PyJWT==1.7.1
 pytz==2016.6.1
 raven==6.9.0
 six==1.11.0

@@ -20,7 +20,7 @@ class OAuth2Backend:
     def authenticate(self, request, token=None):
 
         # If necessary, payload should have been validated 
-        unverified_payload = jwt.decode(token, None, False)
+        unverified_payload = jwt.decode(token, None, False, algorithms=['HS256'])
 
         # Field Validation
         if not unverified_payload.get('email_verified'):
