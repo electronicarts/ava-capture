@@ -303,13 +303,15 @@
               [editAlwaysVisible]=1 [value]="0" (onChanged)="batch_setGain($event)">
             </cam-param>
           </div>
-          <div>
-              Crop 
-              <button class="btn btn-default btn-xs" (click)="all_cameras_crop_center(30);">30%</button>
-              <button class="btn btn-default btn-xs" (click)="all_cameras_crop_center(50);">50%</button>
-              <button class="btn btn-default btn-xs" (click)="all_cameras_crop_center(70);">70%</button>
-              <button class="btn btn-default btn-xs" (click)="all_cameras_reset_crop();">Reset</button>
+          <div class="split-columns">
+            <div style="white-space: nowrap; display: inline-block;">
+            Crop 
+            <button class="btn btn-default btn-xs" (click)="all_cameras_crop_center(30);">30%</button>
+            <button class="btn btn-default btn-xs" (click)="all_cameras_crop_center(50);">50%</button>
+            <button class="btn btn-default btn-xs" (click)="all_cameras_crop_center(70);">70%</button>
+            <button class="btn btn-default btn-xs" (click)="all_cameras_reset_crop();">Reset</button>
             </div>
+          </div>
         </div>
       </div>
     </section>
