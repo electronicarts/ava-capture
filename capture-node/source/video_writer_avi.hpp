@@ -6,20 +6,20 @@ namespace cv { class Mat; }
 
 #include <tbb/concurrent_queue.h>
 #include <boost/thread.hpp>
+#include "video_writer.hpp"
 
 struct AVFrame;
 struct AVPacket;
 
-class VideoWriter
+class AviVideoWriter : public VideoWriter
 {
 public:
-	VideoWriter(const char * filename, int framerate, int width, int height, int bpp);
-	~VideoWriter();
+	AviVideoWriter(const char * filename, int framerate, int width, int height, int bpp);
+	~AviVideoWriter();
 
-	bool addFrame(const cv::Mat& img);
-	void close();
-
-	int buffers_used(int type) const;
+	bool addFrame(const cv::Mat& img, double ts) override;
+	void close() override;
+	int buffers_used(int type) const override;
 
 	static int frame_row_alignment() { return s_frame_row_alignment; }
 
@@ -49,6 +49,5 @@ private:
 	tbb::concurrent_bounded_queue<AVFrame*> m_frame_queue;
 	tbb::concurrent_bounded_queue<AVPacket*> m_paquet_queue;
 
-	boost::thread encode_thread;
-	boost::thread write_thread;
+	boost::thread pipeline_thread;
 };

@@ -5,21 +5,21 @@
 from __future__ import print_function
 from __future__ import absolute_import
 
+import traceback
+import importlib
+
+
 from .base import BaseJob
 
 
 import os
 import sys
 
-
 # Import all job modules
+module_list = ['archive','test']
 
-try:
-    from . import archive
-except:
-    print('Could not import archive')
-
-try:
-    from . import test
-except:
-    print('Could not import test')
+for module_name in module_list:
+    try:
+        importlib.import_module('.'+module_name,__name__)
+    except:
+        print('Could not import %s\n%s' % (module_name, traceback.format_exc(limit=3)))

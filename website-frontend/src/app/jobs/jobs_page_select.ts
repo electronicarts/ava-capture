@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2017 Electronic Arts Inc. All Rights Reserved 
+// Copyright (c) 2018 Electronic Arts Inc. All Rights Reserved 
 //
 
 import {Component, ViewEncapsulation} from '@angular/core';
@@ -66,7 +66,8 @@ export class JobsPageSelect {
           this.nb_running_jobs = data.nb_running_jobs;
           this.nb_queued_jobs = data.nb_queued_jobs;
           this.nb_farmnodes_active = data.nb_farmnodes_active;
-        });    
+        }, err => {}, 
+    'getSystemInformation');    // cache key
     
   }
 

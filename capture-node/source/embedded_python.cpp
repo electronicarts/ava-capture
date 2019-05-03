@@ -37,6 +37,8 @@ public:
 	}
 	~HardwareSyncPythonWrapper()
 	{
+		ScopedPythonLock lock;
+
 		Py_DECREF(handler);
 		handler = 0;
 	}
@@ -76,6 +78,36 @@ private:
 	PyObject * handler;
 };
 
+class NotificationListenerPythonWrapper : public INotificationListener
+{
+public:
+	NotificationListenerPythonWrapper(PyObject * obj) : handler(obj)
+	{
+		Py_INCREF(handler);
+	}
+	~NotificationListenerPythonWrapper()
+	{
+		ScopedPythonLock lock;
+
+		Py_DECREF(handler);
+		handler = 0;
+	}
+	void receiveMessage(const char * msg) const override
+	{
+		ScopedPythonLock lock;
+
+		PyObject_CallMethod(handler, "receiveMessage", "(s)", msg);
+	}
+	void changeState(const char * state) const override
+	{
+		ScopedPythonLock lock;
+
+		PyObject_CallMethod(handler, "changeState", "(s)", state);
+	}
+private:
+	PyObject * handler;
+};
+
 static PyObject *
 avacapture_set_sync(PyObject *self, PyObject *args)
 {
@@ -96,8 +128,30 @@ avacapture_set_sync(PyObject *self, PyObject *args)
 	return Py_BuildValue("i", sts);
 }
 
+static PyObject *
+avacapture_add_listener(PyObject *self, PyObject *args)
+{
+	// Register handler for the Hardware Sync
+
+	PyObject * handler = 0;
+
+	if (!PyArg_ParseTuple(args, "O", &handler))
+		return NULL;
+
+	if (handler)
+	{
+		// Store the handler in a shared_ptr, to be picked up by CaptureNode
+		PythonEngine::Instance().m_notification_listeners.push_back(
+			std::shared_ptr<INotificationListener>(new NotificationListenerPythonWrapper(handler)));
+	}
+
+	int sts = 0;
+	return Py_BuildValue("i", sts);
+}
+
 static PyMethodDef AvaCaptureMethods[] = {
 	{ "set_sync", avacapture_set_sync, METH_VARARGS, "Set hardware sync handler." },
+	{ "add_listener", avacapture_add_listener, METH_VARARGS, "Add notification listener." },
 	{NULL, NULL, 0, NULL}
 };
 
@@ -136,6 +190,9 @@ void PythonEngine::PostContructor(char * programName)
 
 PythonEngine::~PythonEngine()
 {
+	m_sync.reset();
+	m_notification_listeners.clear();
+
 	PyEval_AcquireLock();
 	PyThreadState_Swap((PyThreadState*)mainstate);
 	Py_Finalize();

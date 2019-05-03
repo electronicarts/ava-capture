@@ -1,11 +1,11 @@
 //
-// Copyright (c) 2017 Electronic Arts Inc. All Rights Reserved 
+// Copyright (c) 2018 Electronic Arts Inc. All Rights Reserved 
 //
 
 import { Component } from '@angular/core';
 import { Router, NavigationEnd } from '@angular/router';
 
-import { UserService } from "../../../services/user.service";
+import { UserService, UserModel } from "../../../services/user.service";
 import { NotificationService } from '../../notifications.service';
 import { CaptureService } from '../../capture/capture.service';
 
@@ -14,11 +14,11 @@ import { LoadDataEveryMs } from '../../../utils/reloader';
 @Component({
   selector: 'navbar',
   template: require('./navbar.html'),
-  providers: [NotificationService, CaptureService]
+  providers: [CaptureService]
 })
 export class NavbarComponent {
 
-  user = {first_name: '', last_name: '', gravatar: '', email: ''};
+  user : UserModel = new UserModel();
 
   seed_white = require("../../../assets/images/Symbol_white.png");
 
@@ -68,7 +68,7 @@ export class NavbarComponent {
 
     this.userService.getCurrentUser().subscribe(
         data => {
-          this.user = data;
+          this.user = data;          
         },
         err => {
           console.error(err)
@@ -102,7 +102,7 @@ export class NavbarComponent {
           // There are two ways the JWT can expire, on the frontend (Angular2-jwt) or on the server (Django Rest Jwt returns 401)
 
           if (err.status === 401 || err.message === 'No JWT present or has expired') { // TODO With new version of angular2-jwt use isinstanceof AuthError
-            this.router.navigate(['/login']);
+            this.router.navigate(['/login'], {queryParams: { returnUrl: this.router.url}});
           }
 
         });      

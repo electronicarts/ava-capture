@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2017 Electronic Arts Inc. All Rights Reserved 
+// Copyright (c) 2018 Electronic Arts Inc. All Rights Reserved 
 //
 
 import {Component, ViewEncapsulation} from '@angular/core';
@@ -12,7 +12,7 @@ import { CoreComponent } from '../core/core.component';
   selector: 'pipeline',
   template: `
     <div class="section_select">
-        <div>
+        <div *ngIf="!loading">
             <span class="label">Projects:</span>
             <select [(ngModel)]="current_project" (ngModelChange)="onChangeProject($event)">
               <option value="0">Please select a Project</option>
@@ -35,6 +35,7 @@ export class ReviewProjectPage {
   current_project = 0;
   project_data = [];
   projects_subscription = null;
+  loading : boolean = true;
 
   constructor (private router: Router, private archiveService: ArchiveService, private coreComponent: CoreComponent) {
     this.router = router;
@@ -44,6 +45,7 @@ export class ReviewProjectPage {
             // Notification each time the route changes, so that we can change the select dropdown
             if (val.urlAfterRedirects.startsWith('/app/review/project/archive-by-project')) {
               this.current_project = Number(val.urlAfterRedirects.split('/')[5]);
+              this.coreComponent.setCurrentProject(this.current_project);
             }
         }
     });
@@ -67,6 +69,11 @@ export class ReviewProjectPage {
     this.projects_subscription = this.coreComponent.getProjectsStream().subscribe(
       data => {
         this.project_data = data;
+        this.loading = false;
+
+        if (this.coreComponent.getCurrentProject()>0 && this.current_project != this.coreComponent.getCurrentProject()) {
+          this.router.navigate(['app', 'review', 'project', 'archive-by-project', this.coreComponent.getCurrentProject()]);
+        }     
       }
     );
     

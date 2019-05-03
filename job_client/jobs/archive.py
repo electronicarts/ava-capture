@@ -12,6 +12,7 @@ import os
 import re
 import time
 import logging
+import threading
 from sys import platform
 
 from .base import BaseJob
@@ -68,7 +69,7 @@ class ExportTake(BaseJob):
     class Meta(object):
         description = 'This job is used to copy files from a local folder to a network storage'
 
-def safeCopyFileGenerator(src, dest, block_size = 64*1024*1024):  
+def safeCopyFile(src, dest, block_size=64*1024*1024, callback=None):  
 
     if os.path.exists(dest):
         os.remove(dest)
@@ -78,7 +79,8 @@ def safeCopyFileGenerator(src, dest, block_size = 64*1024*1024):
             arr = fin.read(block_size)
             while arr != "":
                 fout.write(arr)
-                yield len(arr)
+                if callback:
+                    callback(len(arr))
                 arr = fin.read(block_size)
 
 def nice_time(s):
@@ -91,6 +93,61 @@ def nice_time(s):
         return '%d minutes %d seconds' % (minutes,seconds)
     return '%d seconds' % seconds
 
+def nice_size(s):
+    if s<1024:
+        return "%d Bytes" % s
+    s = s // 1024
+    if s<1024:
+        return "%d kB" % s
+    s = s // 1024
+    if s<1024:
+        return "%d MB" % s
+    s = s // 1024
+    if s<1024:
+        return "%d GB" % s
+    s = s // 1024
+    return "%d TB" % s
+
+class ProgressPercentage(object):
+        def __init__(self, src, pipe):
+            if type(src) is list: 
+                self._filenames = src
+            else:
+                self._filenames = [src]
+            self._size = sum([self.safe_get_size(f) for f in self._filenames])
+            self._seen_so_far = 0
+            self._lock = threading.Lock()
+            self._start_time = time.time()
+            self._file_index = 0
+            self._pipe = pipe
+        def safe_get_size(self, filename):
+            size = 0
+            try:
+                if os.path.exists(filename):
+                    size = os.path.getsize(filename)
+            except:
+                pass
+            return size
+        def next_file(self):
+            self._file_index = self._file_index + 1
+        def __call__(self, bytes_amount):
+            with self._lock:
+                self._seen_so_far += bytes_amount
+
+                percent = 100.0 * self._seen_so_far / self._size if self._size > 0 else 0
+
+                # Update stats
+                elapsed = time.time() - self._start_time
+                if elapsed > 0.0:
+                    copy_speed = self._seen_so_far/elapsed
+
+                # Compute estimated ETA
+                eta = ''
+                if copy_speed>0 and self._seen_so_far>0 and self._seen_so_far < self._size:
+                    eta = nice_time(max(self._size-self._seen_so_far,0)/copy_speed) + ' remaining'
+
+                self._pipe.send('Copying [%d%%] File %d of %d (%s/s) %s' % (int(percent), self._file_index+1,len(self._filenames),nice_size(int(copy_speed)), eta))
+
 class CopyFiles(BaseJob):
     def __call__(self, parameters, pipe, log):
 
@@ -100,16 +157,7 @@ class CopyFiles(BaseJob):
 
         if 'file_list' in params:
 
-            start_time = time.time()
-            file_count = len(params['file_list'])
-            copy_speed = 0
-
-            copied_size = 0
-            total_size = 0
-
-            for src,dest in params['file_list']:
-                if os.path.exists(src):
-                    total_size = total_size + os.path.getsize(src)
+            progress = ProgressPercentage([src for src,dest in params['file_list']], pipe)
 
             for i,t in enumerate(params['file_list']):
 
@@ -124,7 +172,7 @@ class CopyFiles(BaseJob):
                     raise Exception('Cannot create folder %s' % dest)
 
                 dest_file = os.path.join(dest,os.path.split(src)[1])
-                log.info('Copy %s to %s' % (src, dest_file))                
+                log.info('Copy %s to %s' % (src, dest_file))
 
                 # Check if file already exists and should be skipped
                 skip_file = False
@@ -138,25 +186,14 @@ class CopyFiles(BaseJob):
 
                     file_size = os.path.getsize(src)
 
-                    for copied in safeCopyFileGenerator(src, dest_file):
-                        
-                        # Update stats
-                        copied_size += copied
-                        elapsed = time.time() - start_time
-                        if elapsed > 0.0:
-                            copy_speed = copied_size/1024/1024/elapsed
-                        
-                        # Compute estimated ETA
-                        eta = ''
-                        if copy_speed>0 and copied_size>0:
-                            eta = nice_time(max(total_size-copied_size,0)/1024/1024/copy_speed) + ' remaining'
-
-                        pipe.send('Copying file %d of %d (%d MB/s) %s' % (i+1,file_count,int(copy_speed), eta))
+                    safeCopyFile(src, dest_file, callback=progress)
 
                     if not os.path.exists(dest_file):
                         raise Exception('Destination file does not exist: %s' % dest_file)
                     if not os.path.getsize(dest_file) == file_size:
                         raise Exception('File size mismatch: %s' % dest_file)
+
+                progress.next_file()
                 
             # Everything copied, delete source files
             if delete_src_files:
@@ -182,8 +219,5 @@ if __name__ == "__main__":
     src = r'C:\ava_capture\20170508_094614\26681150_000.avi'
     dest = r'C:\ava_capture\20170508_094614\26681150_000b.avi'
 
-    file_size = os.path.getsize(src)
-    total = 0
-    for x in safeCopyFileGenerator(src, dest, 8*1024*1024):
-        total += x
-        print(total*100/file_size)
+    safeCopyFile(src, dest, 8*1024*1024)
+    

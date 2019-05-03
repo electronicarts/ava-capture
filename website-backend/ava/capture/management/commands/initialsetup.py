@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2017 Electronic Arts Inc. All Rights Reserved 
+# Copyright (c) 2018 Electronic Arts Inc. All Rights Reserved 
 #
 
 from django.core.management.base import BaseCommand, CommandError

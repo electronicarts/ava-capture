@@ -1,6 +1,5 @@
 var webpack = require('webpack');
 var HtmlWebpackPlugin = require('html-webpack-plugin');
-var ExtractTextPlugin = require('extract-text-webpack-plugin');
 var helpers = require('./helpers');
 
 module.exports = {
@@ -31,11 +30,6 @@ module.exports = {
       },
       {
         test: /\.css$/,
-        exclude: helpers.root('src', 'app'),
-        loader: ExtractTextPlugin.extract({ fallback: 'style-loader', loader: 'css-loader?sourceMap' })
-      },
-      {
-        test: /\.css$/,
         include: helpers.root('src', 'app'),
         loader: 'raw-loader'
       },
@@ -60,17 +54,11 @@ module.exports = {
       {} // a map of your routes
     ),
 
-    new webpack.optimize.CommonsChunkPlugin({
-      name: ['app', 'vendor', 'polyfills']
-    }),
-
     new webpack.ProvidePlugin({
         $: "jquery",
         jQuery: "jquery",
         jquery: "jquery",
-        "window.jQuery": "jquery",
-        'window.Tether': 'tether',
-        Tether: 'tether'
+        "window.jQuery": "jquery"
     })    
   ]
 };

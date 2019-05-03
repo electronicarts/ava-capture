@@ -11,40 +11,48 @@ namespace color_correction
 	{
 		if (img.type() == CV_8UC3)
 		{
-			auto to_8bit = [](float val) -> unsigned char {
-				int ival = val;
-				if (ival > 255)
+			auto to_8bit = [](int val) -> unsigned char {
+				if (val > 255)
 					return 255;
-				if (ival <0)
+				if (val < 0)
 					return 0;
-				return ival;
+				return val;
 			};
+
+			const int ikR = int(bal.kR * 255.0f); // 8bit Integer whitebalance multipliers
+			const int ikG = int(bal.kG * 255.0f);
+			const int ikB = int(bal.kB * 255.0f);
+
+			unsigned char * ptr = (unsigned char *)img.data;
 
 			for (int i = 0; i < img.cols*img.rows; i++)
 			{
-				img.data[i * 3 + 2] = to_8bit(((int)img.data[i * 3 + 2] - black_level) * bal.kR); // R
-				img.data[i * 3 + 1] = to_8bit(((int)img.data[i * 3 + 1] - black_level) * bal.kG); // G
-				img.data[i * 3 + 0] = to_8bit(((int)img.data[i * 3 + 0] - black_level) * bal.kB); // B
+				ptr[i * 3 + 0] = to_8bit((((int)ptr[i * 3 + 0] - black_level) * ikB)>>8); // B
+				ptr[i * 3 + 1] = to_8bit((((int)ptr[i * 3 + 1] - black_level) * ikG)>>8); // G
+				ptr[i * 3 + 2] = to_8bit((((int)ptr[i * 3 + 2] - black_level) * ikR)>>8); // R
 			}
 		}
 		else if (img.type() == CV_16UC3)
 		{
-			auto to_16bit = [](float val) -> unsigned short {
-				int ival = val;
-				if (ival > 65535)
+			auto to_16bit = [](int64_t val) -> unsigned short {
+				if (val > 65535)
 					return 65535;
-				if (ival <0)
+				if (val < 0)
 					return 0;
-				return ival;
+				return val;
 			};
+
+			const int ikR = int(bal.kR * 65535.0f); // 16 bit Integer whitebalance multipliers
+			const int ikG = int(bal.kG * 65535.0f);
+			const int ikB = int(bal.kB * 65535.0f);
 
 			unsigned short * ptr = (unsigned short *)img.data;
 
 			for (int i = 0; i < img.cols*img.rows; i++)
 			{
-				ptr[i * 3 + 2] = to_16bit(((int)ptr[i * 3 + 2] - black_level) * bal.kR); // R
-				ptr[i * 3 + 1] = to_16bit(((int)ptr[i * 3 + 1] - black_level) * bal.kG); // G
-				ptr[i * 3 + 0] = to_16bit(((int)ptr[i * 3 + 0] - black_level) * bal.kB); // B
+				ptr[i * 3 + 0] = to_16bit((((int64_t)ptr[i * 3 + 0] - black_level) * ikB)>>16); // B
+				ptr[i * 3 + 1] = to_16bit((((int64_t)ptr[i * 3 + 1] - black_level) * ikG)>>16); // G
+				ptr[i * 3 + 2] = to_16bit((((int64_t)ptr[i * 3 + 2] - black_level) * ikR)>>16); // R
 			}
 		}
 		else

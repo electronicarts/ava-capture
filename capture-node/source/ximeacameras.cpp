@@ -95,12 +95,14 @@ XimeaCamera::XimeaCamera(int deviceId)
 	set_param_int(XI_PRM_AEAG, 0);
 	set_param_int(XI_PRM_LUT_EN, 0);
 	set_param_int(XI_PRM_GAIN XI_PRMM_DIRECT_UPDATE, 0);
+	set_param_int(XI_PRM_GAIN_SELECTOR, XI_GAIN_SELECTOR_ANALOG_ALL);
 	set_param_int(XI_PRM_ACQ_TIMING_MODE, XI_ACQ_TIMING_MODE_FRAME_RATE);
 	if (isXiC())
 		set_param_int(XI_PRM_ACQ_TIMING_MODE, XI_ACQ_TIMING_MODE_FRAME_RATE_LIMIT);
 	set_param_float(XI_PRM_FRAMERATE, 30.0); // Hz	
 
-	m_has_lens_control = get_param_int(XI_PRM_LENS_MODE XI_PRM_INFO_MAX) > 0;
+	m_has_lens_control = !isXiC() && !isXiQ() && // None of the xiC and xiQ have Lens Control because they don<t have an EF mount
+		(get_param_int(XI_PRM_LENS_MODE XI_PRM_INFO_MAX) > 0);
 	
 	set_param_int(XI_PRM_BUFFER_POLICY, XI_BP_UNSAFE);
 	set_param_int(XI_PRM_BUFFERS_QUEUE_SIZE, get_param_int(XI_PRM_BUFFERS_QUEUE_SIZE XI_PRM_INFO_MAX));
@@ -209,6 +211,21 @@ bool XimeaCamera::set_bitdepth(int bitdepth)
 		set_param_int(XI_PRM_SENSOR_DATA_BIT_DEPTH, 12);
 		set_param_int(XI_PRM_OUTPUT_DATA_BIT_DEPTH, bitdepth);
 		set_param_int(XI_PRM_IMAGE_DATA_BIT_DEPTH, bitdepth);
+	}
+
+	if (isXiC())
+	{
+		if (bitdepth > 8)
+		{
+			// For XiC cameras, the analog gain is lower on 10/12 bits, resulting in darker images by a factor of 4.
+			// To compensate, we apply a gain.
+
+			set_param_int(XI_PRM_GAIN, 12 );  
+		}
+		else
+		{
+			set_param_int(XI_PRM_GAIN, 0 );  
+		}
 	}
 
 	m_last_bitdepth = m_bitcount = get_param_int(XI_PRM_IMAGE_DATA_BIT_DEPTH);
@@ -387,6 +404,9 @@ void XimeaCamera::param_set(const char * name, float value)
 	
 	std::lock_guard<std::recursive_mutex> lock(m_mutex);
 
+	// Set parameter value directly on the camera
+	// Note that some flags (image_rotation) cannot be applied on the camera, they will be simply stored in m_params.
+
 	if (strcmp(name, "lens_mode") == 0 || strcmp(name, "lens_aperture_value") == 0)
 	{
 		// Update without stop / start
@@ -405,7 +425,12 @@ void XimeaCamera::param_set(const char * name, float value)
 		set_param_float(name, value);
 	}
 
-	// Update value in param list
+	// Set the value we are currently changing to m_params.
+	// Note that this value may be overwritten below with the xiGetParamFloat
+	m_params[std::string(name)].last_value = value;
+
+	// Mirror value of all parameters in m_params, because setting one parameter could 
+	// change the value of other parameters.
 	auto it = m_params.find(std::string(name));
 	if (it != m_params.end())
 	{ 
@@ -415,6 +440,14 @@ void XimeaCamera::param_set(const char * name, float value)
 
 float XimeaCamera::param_get(const char * name)
 {
+	// For some parameters not handled by the Ximea camera, we should call the base class implementation
+	bool not_handled_by_camera = 
+		(!has_lens_control() && strncmp(name,"lens", 4)==0) ||
+		(strcmp(name,"image_rotation")==0);
+
+	if (not_handled_by_camera)
+		return Camera::param_get(name);
+
 	return get_param_float(name);
 }
 

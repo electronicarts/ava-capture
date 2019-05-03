@@ -1,0 +1,46 @@
+
+
+1.0.0
+
+    - Initial open source version
+
+1.1.0
+
+Capture Node:
+
+   - New RAW file format for single image Capture (can be selected in web interface)
+   - New .AVA fileformat for continuous sequences (default)
+   - Notification listener in autorun.py to get notification about application state (start recording, stop, etc)
+   - Fixed overexposure display for color images. 
+   - Display overexposed images in Recording Summary on webpage.
+   - Fixed bug causing some parameters to be missing from .txt file when recording (ex. camera rotation)
+   - Whitebalance values can be set from web interface
+   - Fix whitebalance code to use only integers
+   - Implement drive speed test for Linux
+   - Support Secure websocket (define USE_TLS_WEBSOCKET wien compiling)
+   - Allow direct download of captured image without export
+   - Fixed broken ROI 
+   - Automatically apply gain on ximea xiC cameras when using 10/12 bits to fix difference in brightness
+
+Ava Job Client
+
+   - Various improvements and bug fixes in core job client
+   - Display progress with ETA when exporting files
+
+Ava Server Frontend
+
+   - Link to download the image in recording summary
+   - Update Angular and other libraries to recent version
+   - Capture page, add option for raw/tif image capture
+   - Capture page, add UI to set color balance
+   - More responsive zommed-in view of single camera
+   - Misc improvements and bug fixes
+
+Ava Server Backend
+
+   - Support prometheus metrics
+   - Support raven exception reporting
+   - Support Slack notifications
+   - Support AWS farm nodes
+   - Support OAUTH2 Authentication
+   - Misc improvements

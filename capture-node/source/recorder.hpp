@@ -8,10 +8,12 @@
 #include <mutex>
 
 #include <opencv2/highgui.hpp>
+#include <tbb/concurrent_queue.h>
+#include <boost/thread.hpp>
 
 #include "json.hpp"
 #include "color_correction.hpp"
-#include "video_encoder.hpp"
+#include "video_writer.hpp"
 
 enum { BUFFER_ENCODING, BUFFER_WRITING };
 
@@ -67,24 +69,46 @@ protected:
 	int m_dropped_frames;
 };
 
-class SimpleImageRecorder : public SimpleRecorder
+class FrameToWrite
 {
 public:
-	SimpleImageRecorder(const std::string& unique_name, int framerate, int width, int height, int bitcount, bool color_bayer, int bayer_pattern, color_correction::rgb_color_balance bal, const std::vector<std::string>& folders);
+	cv::Mat img;
+	std::string filename;
+	int blacklevel;
+};
+
+class SimpleImageRecorder : public SimpleRecorder
+{
+	static int THREAD_COUNT;
+
+public:
+	SimpleImageRecorder(const std::string& unique_name, int framerate, int width, int height, int bitcount, 
+		bool color_bayer, int bayer_pattern, color_correction::rgb_color_balance bal, 
+		const std::vector<std::string>& folders, bool output_raw);
 
 protected:
 	virtual void append_impl(cv::Mat img, double ts, int blacklevel) override;
 	virtual void close_impl() override;
 
+	void writingThread();
+
+	bool m_output_raw;
+	std::string m_extension;
+
 	bool m_color_bayer;
 	int m_bayerpattern;
 	color_correction::rgb_color_balance m_color_balance;
+
+	boost::thread pipeline_thread;
+	tbb::concurrent_bounded_queue<FrameToWrite*> m_frame_queue;
 };
 
 class SimpleMovieRecorder : public SimpleRecorder
 {
 public:
-	SimpleMovieRecorder(const std::string& unique_name, int framerate, int width, int height, int bitcount, const std::vector<std::string>& folders);
+	SimpleMovieRecorder(const std::string& unique_name, int framerate, int width, int height, int bitcount, 
+		bool color_bayer, int bayer_pattern, color_correction::rgb_color_balance bal,
+		const std::vector<std::string>& folders, bool use_ava_format);
 
 	virtual int buffers_used(int type) const override;
 

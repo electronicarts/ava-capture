@@ -12,6 +12,8 @@ https://docs.djangoproject.com/en/1.10/ref/settings/
 
 import os
 import datetime
+import raven
+import socket
 
 try:
     import secure_settings
@@ -24,14 +26,19 @@ except:
 DB_PW = 'databasepassword'
 SECRET_KEY = 'djangosecretkey'
 PROD_SERVER = False # True for ava.ea.com
-
+DDNS_SERVER = None
+DDNS_KEYFILE = None
  '''
 
 ADMIN_EMAIL = 'edanvoye@ea.com'
+NOTIFICATION_EMAIL = False
+HOSTNAME = socket.gethostname()
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+DDNS_SERVER = secure_settings.DDNS_SERVER
+DDNS_KEYFILE = secure_settings.DDNS_KEYFILE
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/1.10/howto/deployment/checklist/
@@ -42,10 +49,25 @@ SECRET_KEY = secure_settings.SECRET_KEY
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
+DATA_UPLOAD_MAX_MEMORY_SIZE=262144000 # 250 MB
+FILE_UPLOAD_MAX_MEMORY_SIZE=262144000
+
+ALLOWED_HOSTS = []
+
+# Slack notifications (specify in dev_secure_settings)
+SLACK_NOTIF_HOOK = secure_settings.SLACK_NOTIF_HOOK
+
+TAGGIT_CASE_INSENSITIVE = True
+
 # Authentication
 
+#OAUTH2_CLIENT_ID = 'something.apps.googleusercontent.com'
+#OAUTH2_CLIENT_SECRET = '000000000000000000000000'
+#OAUTH2_REDIRECT_URI = 'http://127.0.0.1:8000/oauth2'
+
 AUTHENTICATION_BACKENDS = (
-    'django.contrib.auth.backends.ModelBackend', 
+    'django.contrib.auth.backends.ModelBackend',
+#    'ava.oauth2.OAuth2Backend',
     )
 
 # Application definition
@@ -64,10 +86,15 @@ INSTALLED_APPS = [
     'rest_framework',
     'solo.apps.SoloAppConfig',
     'django.contrib.humanize',
-    'django_filters'
+    'django_filters',
+    'taggit',
+    'taggit_serializer',
+    'django_prometheus',
+    'raven.contrib.django.raven_compat'
 ]
 
 MIDDLEWARE = [
+    'django_prometheus.middleware.PrometheusBeforeMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -75,6 +102,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'django_prometheus.middleware.PrometheusAfterMiddleware',
 ]
 
 ROOT_URLCONF = 'ava.urls'
@@ -147,7 +175,7 @@ REST_FRAMEWORK = {
 }
 
 JWT_AUTH = {
-    'JWT_EXPIRATION_DELTA': datetime.timedelta(seconds=3600),
+    'JWT_EXPIRATION_DELTA': datetime.timedelta(seconds=24*3600),
     'JWT_ALLOW_REFRESH': True,
     'JWT_REFRESH_EXPIRATION_DELTA': datetime.timedelta(days=7),
 }
@@ -163,8 +191,13 @@ LOGGING = {
         },
     },
     'handlers': {
-        'file': {
+        'sentry': {
             'level': 'WARNING',
+            'class': 'raven.contrib.django.raven_compat.handlers.SentryHandler',
+            'tags': {'custom-tag': 'prod'},
+        },
+        'file': {
+            'level': 'ERROR',
             'class': 'logging.FileHandler',
             'filename': '/var/log/django.log',
             'formatter': 'verbose'
@@ -172,13 +205,17 @@ LOGGING = {
     },
     'loggers': {
         'dev': {
-            'handlers': ['file'],
+            'handlers': ['file', 'sentry'],
             'level': 'WARNING',
             'propagate': True,
         },
     },
 }
 
+# RAVEN_CONFIG = {
+#     'dsn': 'https://something@sentry.io/xxxxxx',
+#     'release': os.environ.get('AVA_GIT_VERSION') if 'AVA_GIT_VERSION' in os.environ else raven.fetch_git_sha(os.path.abspath(os.pardir)),
+# }
 
 # Internationalization
 # https://docs.djangoproject.com/en/1.10/topics/i18n/
@@ -205,6 +242,8 @@ FRONTEND_URL = '/d/#'
 
 if not secure_settings.PROD_SERVER: # DEV Server has a different way to serve static files, and more verbose logging
 
+    ALLOWED_HOSTS = ['*']
+
     # This is a development server
     DEBUG = True
     FRONTEND_URL = STATIC_URL + 'd/index.html#'
@@ -215,7 +254,7 @@ if not secure_settings.PROD_SERVER: # DEV Server has a different way to serve st
     DATABASES = {
         'default' : {
             'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': os.path.join(BASE_DIR,'sqlite3.db'),
+            'NAME': os.path.join(BASE_DIR,'dev-database','sqlite3.db'),
         }
     }
     
@@ -228,19 +267,32 @@ if not secure_settings.PROD_SERVER: # DEV Server has a different way to serve st
             },
         },
         'handlers': {
+            'sentry': {
+                'level': 'WARNING',
+                'class': 'raven.contrib.django.raven_compat.handlers.SentryHandler',
+                'tags': {'custom-tag': 'dev'},
+            },            
             'file': {
                 'level': 'DEBUG',
                 'class': 'logging.FileHandler',
                 'filename': os.path.join(BASE_DIR, 'debug.log'),
                 'formatter': 'verbose'
             },
+            'console': {
+                'class': 'logging.StreamHandler',
+            },
         },
         'loggers': {
             'dev': {
-                'handlers': ['file'],
+                'handlers': ['file', 'sentry'],
                 'level': 'DEBUG',
                 'propagate': True,
-            },
+            }
+            # ,
+            # 'django.db.backends': {
+            #     'level': 'DEBUG',
+            #     'handlers': ['console'],
+            # }            
         },
     }
 

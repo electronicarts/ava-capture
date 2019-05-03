@@ -1,8 +1,8 @@
 #
-# Copyright (c) 2017 Electronic Arts Inc. All Rights Reserved 
+# Copyright (c) 2018 Electronic Arts Inc. All Rights Reserved 
 #
 
-from models import CaptureNode, Camera
+from models import CaptureNode, Camera, CaptureLocation
 from rest_framework import serializers
 
 import json
@@ -20,7 +20,7 @@ class CaptureNodeSerializer(serializers.HyperlinkedModelSerializer):
 
     class Meta:
         model = CaptureNode
-        fields = ('ip_address', 'id', 'machine_name', 'os', 'last_seen', 'cameras', 'active', 'sync_found', 'drive_info', 'code_version')
+        fields = ('ip_address', 'id', 'machine_name', 'os', 'last_seen', 'cameras', 'active', 'sync_found', 'drive_info', 'code_version', 'build_version')
 
     def to_representation(self, instance):
         ret = super(CaptureNodeSerializer, self).to_representation(instance)
@@ -29,6 +29,14 @@ class CaptureNodeSerializer(serializers.HyperlinkedModelSerializer):
         except:
             pass # string is not valid json
         return ret
+
+class CaptureLocationSerializer(serializers.ModelSerializer):
+
+    nodes = CaptureNodeSerializer(many=True)
+
+    class Meta:
+        model = CaptureLocation
+        fields = ('id', 'name', 'nodes', 'hardware_sync_frequency', 'pulse_duration', 'external_sync', 'display_focus_peak', 'display_overexposed', 'display_histogram', 'bitdepth_avi', 'bitdepth_single', 'image_format', 'wb_R', 'wb_G', 'wb_B')
 
 class CameraSerializer(serializers.HyperlinkedModelSerializer):
 

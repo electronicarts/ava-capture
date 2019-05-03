@@ -1,6 +1,9 @@
 <div *ngIf="node_data">  
 
     <div>Name: <b>{{node_data.machine_name}}</b></div>
+    <div>
+        <div class="tag tagnode" *ngFor="let tag of node_data.tags">{{tag}}</div>
+    </div>
     <div>IP: {{node_data.ip_address}}</div>
     <div>last_seen: {{node_data.last_seen | date:"MM/dd/yy HH:mm"}}</div>
     <div>Status: 
@@ -15,7 +18,7 @@
         {{node_data.cpu_brand}} CPU ({{node_data.cpu_cores}} Threads) 
         <span *ngIf="node_data.gpu_count>0">, {{node_data.gpu_count}} CUDA GPU</span>
     </div>
-    <div>code version: {{node_data.code_version}}</div>
+    <div>code version: {{node_data.code_version}} git:{{node_data.git_version}}</div>
     <div>
         Jobs: 
         <span class="badge" style="margin-top: 0px;"
@@ -24,7 +27,13 @@
             Running: {{node_data.running_jobs.length}}           
         </span>    
 
+        <div>Running Jobs:</div>
         <div *ngFor="let job of node_data.running_jobs; trackBy:trackByJobId">
+            <job_block [data]="job"></job_block>
+        </div>
+
+        <div>Recent Jobs:</div>
+        <div *ngFor="let job of node_data.recent_jobs; trackBy:trackByJobId">
             <job_block [data]="job"></job_block>
         </div>
 

@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2017 Electronic Arts Inc. All Rights Reserved 
+// Copyright (c) 2018 Electronic Arts Inc. All Rights Reserved 
 //
 
 import { NgModule }      from '@angular/core';
@@ -28,6 +28,7 @@ import { FarmNodePage } from './../jobs/farm_node';
 import { JobDetailsPage } from './../jobs/job_details';
 import { FarmNodesPage } from './../jobs/farm_nodes';
 import { JobsRunningPage } from './../jobs/jobs_running';
+import { JobOutputPage } from './../jobs/job_output';
 import { JobsPageSelect } from './../jobs/jobs_page_select';
 import { ArchivesPage } from './../archive/archive-by-session';
 import { AssetsByProjectPage } from './../assets/assets-by-project';
@@ -39,16 +40,17 @@ import { CreateTrackingPage } from './../archive/create-tracking';
 import { ReviewMenuPage } from './../archive/review-menu';
 import { ReviewProjectPage } from './../archive/review-project-select';
 import { ReviewSessionPage } from './../archive/review-session-select';
+import { ColorChartPage } from './../components/color_chart';
 
 const coreRoutes: Routes = [
   {
     path: 'app',
     component: CoreComponent,
     children: [
+      { path: 'color_chart/:id', component: ColorChartPage, canActivate: [LoggedInGuard] },
       { path: 'frontpage', component: FrontpageComponent, canActivate: [LoggedInGuard]},
       { path: 'lightstage-control', component: LightstageControlPage, canActivate: [LoggedInGuard] },
       { path: 'farm-node/:id', component: FarmNodePage, canActivate: [LoggedInGuard] },
-      { path: 'job_details/:id', component: JobDetailsPage, canActivate: [LoggedInGuard] },
       { path: 'archive-by-session', component: ArchivesPage, canActivate: [LoggedInGuard] },
       { path: 'archive-projects', component: ArchiveProjectsPage, canActivate: [LoggedInGuard] },      
       { path: 'archive-session/create-tracking/:id', component: CreateTrackingPage, canActivate: [LoggedInGuard] },
@@ -69,6 +71,7 @@ const coreRoutes: Routes = [
         { path: 'farm-nodes', component: FarmNodesPage, canActivate: [LoggedInGuard] },
       ]
       },
+      { path: 'job-output/:id', component: JobOutputPage, canActivate: [LoggedInGuard] },
       { path: 'pipeline', component: PipelinePage, canActivate: [LoggedInGuard], children: [
         { path: 'assets-by-project/:id', component: AssetsByProjectPage, canActivate: [LoggedInGuard] },
       ]},

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2017 Electronic Arts Inc. All Rights Reserved 
+# Copyright (c) 2018 Electronic Arts Inc. All Rights Reserved 
 #
 
 from django.conf.urls import url, include
@@ -7,7 +7,11 @@ from rest_framework import routers
 
 from . import views
 
+router = routers.DefaultRouter()
+router.register(r'loc', views.LocationsViewSet)
+
 urlpatterns = [
+    url(r'^', include(router.urls)),
     url(r'^cameras_detailed/(?P<location_id>[0-9]+)', views.cameras_detailed),
     url(r'^camera_detailed/(?P<location_id>[0-9]+)/(?P<camera_id>[0-9]+)', views.camera_detailed),
     url(r'^location/(?P<location_id>[0-9]+)', views.location),
@@ -25,6 +29,7 @@ urlpatterns = [
     url(r'^toggle_capturing', views.post_toggle_capturing),    
     url(r'^set_camera_rotation', views.post_set_camera_rotation),    
     url(r'^close_node', views.post_close_node),
-    url(r'^camera_set_roi/(?P<camera_id>[0-9]+)', views.post_set_roi),
-    url(r'^camera_reset_roi/(?P<camera_id>[0-9]+)', views.post_reset_roi)
+    url(r'^camera_set_roi', views.post_set_roi),
+    url(r'^camera_reset_roi', views.post_reset_roi),
+    url(r'^message', views.post_message),    
     ]

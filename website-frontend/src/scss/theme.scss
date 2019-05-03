@@ -1,9 +1,9 @@
-/* Copyright (C) 2017 Electronic Arts Inc. All rights reserved. */
+/* Copyright (C) 2018 Electronic Arts Inc. All rights reserved. */
 
 @import "variables";
 @import "mixins";
 @import "utils";
-
+@import "ansi2html";
 
 /* CSS */
 
@@ -12,7 +12,11 @@ html, html * {
 	padding: 0;
 	box-sizing: border-box;
 }
-	
+
+html, body {
+	height: 100%;
+}
+
 html {
 	font-size: 16px;
     font-family: Calibri,Arial,Helvetica,sans-serif;
@@ -43,6 +47,30 @@ body {
 	border: 0;
 	background-color: $theme-bg;
 	position:relative;
+}
+
+.console_output {
+	background-color: #000000;
+	border-color: #353535;
+	border-style: solid;
+	border-width: 1px;
+	border-radius: 3px;
+	padding: 4px;
+	margin: 5px;
+
+	display: block;
+	font-family: monospace;
+	white-space: pre;
+	font-size: 0.8rem;
+}
+
+.prevent-select {
+	-khtml-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
 }
 
 .header {
@@ -118,18 +146,108 @@ body {
 
 }
 
-footer {
+.shotheader {
+	padding: 4px;
+    background-color: #f3dd72;
+    color: black;
+}
+
+#container {
+	min-height:100%;
+	position:relative;
+}
+
+#body {
+	padding-bottom:20px;   /* Height of the footer */
+}
+
+#footer {
 	color: #666;
 	background-color: $header-bg;
-	bottom: 0px;
+
+	bottom: 0;
 	position: absolute;
 	width: 100%;
+	height: 20px; /* Height of the footer */
 	padding: 3px;
+
     font-weight: 400;
 	text-align: center;
 	font-size: 0.6rem;
 	font-family: Gotham, "Helvetica Neue", Helvetica, Arial, "sans-serif";
 }
+
+.suggestion {
+	padding-left: 8px;
+    padding-top: 4px;
+    color: #666;
+	font-size: 0.8rem;
+	
+	a {
+		cursor: pointer;
+	}
+}
+
+.tag {
+	padding: 2px 5px;
+    font-size: 10px;
+    font-style: normal;
+    font-weight: 400;
+	display: inline-block;
+	margin-right: 1px;
+	
+	line-height: 1;
+    color: #fff;
+    text-align: center;
+    white-space: nowrap;
+    vertical-align: baseline;
+    border-radius: .25em;
+}
+
+.tagjob {
+	background-color: #1f78d1;
+}
+
+.tagnode {
+	background-color: #0fa148;
+}
+
+.tagawsready {
+	background-color: #5ee411;
+	color: #000;
+}
+
+.tagawsdisabled {
+	background-color: #6f7174;
+	color: #000;
+}
+
+.tagaws {
+	background-color: #e47911;
+	color: #000;
+}
+
+.tag-group {
+
+	.tag {
+		margin-right: 0px;
+	}
+
+	.tag:first-child {
+		border-top-right-radius: 0px;
+		border-bottom-right-radius: 0px;
+	}
+	
+	.tag:last-of-type {
+		border-top-left-radius: 0px;
+		border-bottom-left-radius: 0px;
+	}
+	
+	.tag:not(:last-child).tag:not(:first-child) {
+		border-radius: 0em;
+	}
+}
+
 
 ul.notification-area {
 	width: 100%;
@@ -204,6 +322,11 @@ ul.notification-area {
 	.title {
 		font-size: 150%;
 	}
+
+}
+
+.highlight {
+	background-color: $theme-highlight;
 }
 
 .section_select div {
@@ -327,11 +450,25 @@ ul.notification-area {
 	border-style: solid;
 	border-width: 1px;
 	border-radius: 3px;
+
+	background-color: #E0E0E0;
+	color:#404040;
+}
+
+.form-control:disabled {
+	color:#A0A0A0;
+	border-color: #A0A0A0;
+	background-color: #C0C0C0;
 }
 
 .form-control-dark {
 	background-color: #404040;
 	color:#CCC;
+}
+
+.form-control-dark:disabled {
+	color:#505050;
+	border-color: #808080;
 }
 
 /* Buttons */
@@ -351,12 +488,23 @@ ul.notification-area {
 	border-radius: 3px;	
 }
 
+.btn-circle {
+	border-radius: 50%;
+    margin: 0px;
+    width: 1.8em;
+    height: 1.8em;
+    padding: 0px;
+	text-align: center;		
+}
+
 .btn:hover {
 	border-color: #202020;
 }
 
 .btn:active {
-    border: 2px solid #C0C0C0;
+	border-color: #C0C0C0;
+	border-style: solid;
+	border-width: 2px;
 	margin: 0px;
 }
 
@@ -410,10 +558,115 @@ ul.notification-area {
 }
 
 .btn-invisible {
-	border-style: none;
-	border-width: 0px;
+	color: #000;
 	background-color: inherit;
+	border-width: 0px;	
+	border-style: none;
 	cursor: pointer;
+}
+
+.btn-invisible:active {
+	border-width: 0px;	
+	border-style: none;
+	background-color: #CCC;
+}
+
+.btn-invisible:disabled {
+	color: #404040;
+}
+
+.btn-running {
+	background-color: #DDD237;
+}
+
+/* Clipboard readonly text box */
+.clipboard-path {
+    padding: 0px;
+	overflow: hidden; /* Clear floats */	
+	font-size:0;
+	display: inline;
+	margin: 0px;
+
+	input {
+
+		margin-top: 1px;
+		margin-bottom: 1px;
+
+		vertical-align: top;
+		padding: 5px 1px 5px 6px;
+		height: 20px;
+		width: 380px;
+		border: 1px solid #888;
+		border-right-style: none;
+		font: normal 12px "Courier New", Courier, monospace;
+		background: #444;
+		color: #a0a0a0;
+		border-radius: 6px 0px 0px 6px;
+	}
+
+	button {
+
+		vertical-align: top;
+		background-color: #77a2ad;
+		background-image: linear-gradient(#9ebdc4, #77a2ad);
+		border-radius: 0px 6px 6px 0px;    
+		border-width: 1px;
+		border-style: solid;
+		border-color: #83aab4 #56838e #496f78;
+		box-shadow: 0 0 1px rgba(0, 0, 0, 0.3), 
+					0 1px 0 rgba(255, 255, 255, 0.3) inset;
+		height: 20px;
+		margin-top: 1px;
+		margin-bottom: 1px;
+		padding: 0;
+		width: 30px;
+		cursor: pointer;
+		font: bold 14px Arial, Helvetica;
+		color: #23441e;    
+		text-shadow: 0 1px 0 rgba(255,255,255,0.5);		
+
+	}
+
+	button:hover {
+		color: #33542e; 
+	}
+
+	button:active {
+		background-color: #9ebdc4;
+		background-image: linear-gradient(#77a2ad, #9ebdc4);
+		outline: none;
+	}
+}
+
+.clipboard-path:after {
+    content: "";
+    clear: both;
+    display: table;
+}
+
+/* Options Panel */
+
+.option-panel {
+	margin: 1px;
+	border-style: solid;
+	box-shadow: none;
+	border-color: #757575;
+    border-width: 1px;
+	border-radius: 4px;
+	display: inline-block;
+	vertical-align: top;
+}
+.option-panel-highlight {
+	border-color: #D0D000;
+}
+.option-title {
+	background-color:rgba(255, 255, 255, 0.1);
+	padding: 2px 4px 2px 4px;
+	font-size: 80%;
+}
+.option-content {
+	font-size: 80%;
+	padding: 1px 2px 1px 2px;
 }
 
 /* Button Groups */
@@ -468,7 +721,7 @@ ul.notification-area {
 
 .dropdown-menu {
 	z-index: 1;
-	color: #D0D0D0;
+	color: #000;
 	min-width: 160px;
 	background-color: #f9f9f9;
 	text-align: left;
@@ -493,7 +746,11 @@ ul.notification-area {
 }
 
 .dropdown-menu a:hover {
-	background-color: #f1f1f1;
+	background-color: #C8F0FF;
+}
+
+.dropdown-menu a:active {
+	background-color: #55C9F4;
 }
 
 /* Hover dropdown */
@@ -583,7 +840,23 @@ section .content-block {
 }
 
 .table-striped {
-	tr:nth-child(even) {background-color: #505050}
+	tr:nth-child(even) {background-color: #313131}
+}
+
+.table-striped {
+	tr:nth-child(odd) {background-color: #262626}
+}
+
+.table-header {
+	background-color: #555555;
+	background-image: linear-gradient(#555555, darken(#555555, 5%));
+	color:#F2F2F2;
+}
+
+.table-smallheader {
+	background-color: #3e3e3e;
+	background-image: linear-gradient(#3e3e3e, darken(#3e3e3e, 5%));
+	color:#B6B6B6;
 }
 
 .table-hover {
@@ -594,6 +867,7 @@ section .content-block {
 
 .badge {
 	background-color: $notification-color-default;
+	background-image: linear-gradient($notification-color-default, $notification-color-default-dark);
 	color: $notif-text-color;
 	padding: 1px 4px;
 	border-radius: 10px;
@@ -618,26 +892,32 @@ section .content-block {
 
 .badge-default {
 	background-color: $notification-color-default;
+	background-image: linear-gradient($notification-color-default, $notification-color-default-dark);
 }
 
 .badge-info {
 	background-color: $notification-color-info;
+	background-image: linear-gradient($notification-color-info, $notification-color-info-dark);
 }
 
 .badge-success {
 	background-color: $notification-color-success;
+	background-image: linear-gradient($notification-color-success, $notification-color-success-dark);
 }
 
 .badge-warning {
 	background-color: $notification-color-warning;
+	background-image: linear-gradient($notification-color-warning, $notification-color-warning-dark);
 }
 
 .badge-error {
 	background-color: $notification-color-error;	
+	background-image: linear-gradient($notification-color-error, $notification-color-error-dark);
 }
 
 .badge-danger {
 	background-color: $notification-color-error;	
+	background-image: linear-gradient($notification-color-error, $notification-color-error-dark);
 }
 
 
@@ -713,6 +993,42 @@ section .content-block {
 		overflow-y:auto; 
 		height: calc(100% - 30px);
 	}
+}
+
+/* Tooltips (https://www.w3schools.com/css/css_tooltip.asp) */
+
+/* Tooltip container */
+.tooltip {
+    position: relative;
+    display: inline-block;
+}
+
+.tooltip:not(.tooltip-nohover) {
+    border-bottom: 1px dotted black; /* If you want dots under the hoverable text */
+}
+
+/* Tooltip text */
+.tooltip .tooltiptext {
+    visibility: hidden;
+    background-color: #FFE100;
+    color: #000000;
+    text-align: left;
+    padding: 2px 4px;
+	border-radius: 6px;
+	
+	box-shadow: 2px 2px 10px 0px rgba(0, 0, 0, 0.8);
+ 
+    position: absolute;
+    z-index: 1;
+}
+
+/* Show the tooltip text when you mouse over the tooltip container */
+.tooltip:hover:not(.tooltip-nohover) .tooltiptext {
+    visibility: visible;
+}
+
+.tooltip-visible .tooltiptext {
+    visibility: inherit;
 }
 
 /* Misc  */

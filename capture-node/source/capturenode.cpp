@@ -13,11 +13,13 @@
 #include <iostream>
 #include <iterator>
 
-CaptureNode::CaptureNode(bool initializeWebcams, bool initializeAudio, bool initializeDummyCam, const std::string& recording_folder) 
-	: m_sync_active(false), m_shutdownrequested(false)
+CaptureNode::CaptureNode(
+	bool initializeWebcams, bool initializeAudio, bool initializeDummyCam, 
+	const std::vector<std::string>& recording_folders) 
+	: StateMachine<CaptureNodeState>(STATE_UNKNOWN), m_sync_active(false), m_shutdownrequested(false)
 {
-	m_external_sync_always = false;
-	m_external_sync_while_recording = false;
+	m_external_sync_preview = false;
+	m_external_sync_recording = false;
 
 	m_first_update_sent = false;
 
@@ -26,7 +28,11 @@ CaptureNode::CaptureNode(bool initializeWebcams, bool initializeAudio, bool init
 	m_global_framerate = 30; // frames/second
 	m_global_pulse_duration = 2000; // us
 
-	std::cout << "Initializing hardware synch..." << std::endl;
+	m_bitdepth_default = 8;
+	m_bitdepth_maximum = 8;
+	m_image_format_raw = false;
+
+	std::cout << "Initializing hardware sync..." << std::endl;
 
 	// Hardware Synch
 	{
@@ -52,8 +58,7 @@ CaptureNode::CaptureNode(bool initializeWebcams, bool initializeAudio, bool init
 	std::cout << "Computing drive speed..." << std::endl;
 
 	// Benchmark disks, gather list of folders
-#ifdef WIN32
-	if (recording_folder.empty())
+	if (recording_folders.empty())
 	{
 		m_capture_folders = get_recording_folder_list();
 
@@ -67,16 +72,15 @@ CaptureNode::CaptureNode(bool initializeWebcams, bool initializeAudio, bool init
 		}
 	}
 	else
-#else
-	#pragma message("TODO Implement in Linux")
-#endif 	
-	{
-		size_t speed = get_drive_speed(recording_folder);
-
-		if (speed)
+	{	
+		for (auto folder : recording_folders)
 		{
-			m_capture_folders.push_back(std::make_pair(recording_folder, speed));
-			std::cout << "Recording folder: " << recording_folder << " " << speed << " MB/s" << std::endl;
+			size_t speed = get_drive_speed(folder);
+			if (speed)
+			{
+				m_capture_folders.push_back(std::make_pair(folder, speed));
+				std::cout << "Recording folder: " << folder << " " << speed << " MB/s" << std::endl;
+			}
 		}
 	}
 
@@ -97,7 +101,7 @@ CaptureNode::CaptureNode(bool initializeWebcams, bool initializeAudio, bool init
 	// Initialize a dummy camera for testing
 	if (initializeDummyCam)
 	{ 
-		std::vector<std::shared_ptr<Camera> > dummy_cameras = DummyCamera::get_dummy_cameras(1);
+		std::vector<std::shared_ptr<Camera> > dummy_cameras = DummyCamera::get_dummy_cameras(2);
 		std::copy(dummy_cameras.begin(), dummy_cameras.end(), std::back_inserter(m_cameras));
 	}
 
@@ -111,6 +115,8 @@ CaptureNode::CaptureNode(bool initializeWebcams, bool initializeAudio, bool init
 #endif
 
 	CaptureNode::scan_for_new_devices();
+
+	GotoState(STATE_PREVIEW);
 }
 
 CaptureNode::~CaptureNode()
@@ -212,6 +218,16 @@ void CaptureNode::setGlobalParams(const std::string& json)
 	{
 		m_bitdepth_maximum = doc["bitdepth_single"].GetInt();
 	}
+	if (doc.HasMember("image_format") && doc["image_format"].IsString())
+	{
+		m_image_format_raw = strcmp(doc["image_format"].GetString(),"raw")==0;
+	}
+	if (doc.HasMember("wb_R") && doc.HasMember("wb_G") && doc.HasMember("wb_B"))
+	{
+		std::lock_guard<std::mutex> lock(m_mutex);
+		for (auto& cam : m_cameras)
+			cam->updateColorBalance(doc["wb_R"].GetDouble(), doc["wb_G"].GetDouble(), doc["wb_B"].GetDouble());
+	}
 
 	if (doc.HasMember("frequency"))
 	{
@@ -264,13 +280,20 @@ void CaptureNode::setGlobalParams(const std::string& json)
 				{ 
 					for (rapidjson::Value::ConstMemberIterator itr = params[i].MemberBegin(); itr != params[i].MemberEnd(); ++itr)
 					{
+						// Apply each parameter to the camera
+
 						if (itr->value.IsBool() && (strcmp(itr->name.GetString(),"using_sync"))==0) // special case
 						{
 							it->set_hardware_sync(itr->value.GetBool(), global_framerate());
 						}
-						if (itr->value.IsDouble())
+						else if (itr->value.IsDouble())
 						{
 							it->param_set(itr->name.GetString(), itr->value.GetDouble());
+						}
+						else if (itr->value.IsInt())
+						{
+							// generic parameters passed as Inegers are converted to float for param_set
+							it->param_set(itr->name.GetString(), itr->value.GetInt());
 						}
 					}
 				}			
@@ -305,25 +328,26 @@ std::string CaptureNode::sync_port() const
 
 void CaptureNode::set_global_framerate(int freq, int duration_us, bool external_sync)
 {
+	// Cannot be called while recording
+
 	if (duration_us)
 		m_global_pulse_duration = duration_us;
 	m_global_framerate = freq;
 
-	// TEMPORARY options to be added to UI
-	m_external_sync_always = false;
-	m_external_sync_while_recording = external_sync;
+	m_external_sync_preview = false; // TODO: option to be added to UI
+	m_external_sync_recording = external_sync;
 
 	if (m_sync_active && m_sync.get())
 	{
 		std::cout << "Set global framerate to " << freq << std::endl;
 		if (duration_us)
 			std::cout << "Set global pulse duration to " << duration_us << std::endl;
-		if (m_external_sync_always)
-			std::cout << "Using external sync: Always" << std::endl;
-		if (m_external_sync_while_recording)
-			std::cout << "Using external sync: While Recording" << std::endl;
+		if (m_external_sync_preview)
+			std::cout << "Using external sync: Preview" << std::endl;
+		if (m_external_sync_recording)
+			std::cout << "Using external sync: Recording" << std::endl;
 
-		m_sync->start(m_global_framerate, m_global_pulse_duration, m_external_sync_always);
+		m_sync->start(m_global_framerate, m_global_pulse_duration, m_external_sync_preview);
 	}
 }
 
@@ -362,33 +386,41 @@ std::vector<std::string> CaptureNode::get_take_recording_folders()
 
 void CaptureNode::record_image_sequence(int frame_count)
 {
-	prepare_single(frame_count);
-	prepare_multi_stage2();
-	recording_trigger();
-	finalize_single();
+	setBurstCount(frame_count);
+	if (frame_count>1)
+	{
+		GotoState(STATE_BURST_PREPARE1);
+		GotoState(STATE_BURST_PREPARE2);
+		GotoState(STATE_BURST_START);
+		GotoState(STATE_BURST_FINALIZE);
+	}
+	else
+	{
+		GotoState(STATE_SINGLESHOT_PREPARE1);
+		GotoState(STATE_SINGLESHOT_PREPARE2);
+		GotoState(STATE_SINGLESHOT_START);
+		GotoState(STATE_SINGLESHOT_FINALIZE);
+	}
+	GotoState(STATE_PREVIEW);
 }
 
 void CaptureNode::start_recording_all()
 {
-	prepare_multi_stage1();
-	prepare_multi_stage2();
-	recording_trigger();
+	GotoState(STATE_CONTINUOUS_PREPARE1);
+	GotoState(STATE_CONTINUOUS_PREPARE2);
+	GotoState(STATE_CONTINUOUS_START);	
 }
 
-void CaptureNode::prepare_single(int count)
+void CaptureNode::prepare_single()
 {
 	std::cout << "STATUS> Prepare Single" << std::endl;
 
 	namespace fs = boost::filesystem;
 
 	// Record to the fastest drive found
-	std::vector<std::string> folders;
-	folders.push_back(get_take_recording_folders()[0]);
+	const std::vector<std::string> all_folders = get_take_recording_folders();
 
-	if (!fs::exists(folders[0]))
-		fs::create_directories(folders[0]);
-
-	std::cout << "Recording " << count << " frame(s) to " << folders[0] << std::endl;
+	std::cout << "Recording " << m_burstCount << " frame(s)" << std::endl;
 
 	m_recording_cameras.clear();
 
@@ -414,12 +446,28 @@ void CaptureNode::prepare_single(int count)
 	{
 		if (cam->set_bitdepth(m_bitdepth_maximum))
 			cam->block_until_next_frame(0.240);
+		cam->set_record_as_raw(m_image_format_raw);
 	}
 
 	// Begin recording
+	int i=0;
 	for (auto& cam : m_recording_cameras)
 	{
-		cam->start_recording(folders, true, count); // Wait for trigger
+		if (m_burstCount>1)
+		{
+			// Burst: send all folders, so that each frame gets written to a different drive
+
+			cam->start_recording(all_folders, true, m_burstCount); // Wait for trigger
+		}
+		else
+		{
+			// Single frame: send one folder, different for each camera
+
+			std::vector<std::string> folders;
+			folders.push_back(all_folders[(i++)%all_folders.size()]);
+			
+			cam->start_recording(folders, true, m_burstCount); // Wait for trigger
+		}
 	}
 }
 
@@ -434,16 +482,15 @@ void CaptureNode::recording_trigger()
 			cam->software_trigger();
 	}
 	
-	// Pause Sync for 300 ms
+	// Make sure there is a 250ms gap and restart sync
 	if (sync_connected())
 	{
-		pause_sync();
 		boost::this_thread::sleep_for(boost::chrono::milliseconds(250));
-		resume_sync(true);
+		start_recording_sync();
 	}
 }
 
-shared_json_doc CaptureNode::finalize_single()
+void CaptureNode::finalize_single()
 {
 	std::cout << "STATUS> Finalize Single" << std::endl;
 
@@ -488,7 +535,7 @@ shared_json_doc CaptureNode::finalize_single()
 
 	m_recording_cameras.clear();
 
-	return all_cameras_doc;
+	m_last_summary = all_cameras_doc;
 }
 
 void CaptureNode::prepare_multi_stage1()
@@ -511,6 +558,8 @@ void CaptureNode::prepare_multi_stage1()
 
 				// Bitdepth is the same as the continuous preview, we don't need to change it
 				//cam->set_bitdepth(m_bitdepth_default);
+
+				cam->set_record_as_raw(true); // TODO Option to choose between .ava and .avi
 
 				int nthreads = (int)(1 + (cam->bandwidth() / 1024 / 1024 / m_bandwidth_per_thread));
 
@@ -551,9 +600,14 @@ void CaptureNode::prepare_multi_stage2()
 	{
 		cam->remove_recording_hold();
 	}
+
+	if (sync_connected())
+	{
+		stop_sync(); // Stop preview pulses
+	}
 }
 
-shared_json_doc CaptureNode::stop_recording_all()
+void CaptureNode::stop_recording_all()
 {
 	std::cout << "STATUS> Stop Recording" << std::endl;
 
@@ -594,10 +648,10 @@ shared_json_doc CaptureNode::stop_recording_all()
 
 	m_recording_cameras.clear();
 
-	return all_cameras_doc;
+	m_last_summary = all_cameras_doc;
 }
 
-void CaptureNode::pause_sync()
+void CaptureNode::stop_sync()
 {
 	if (m_sync.get() && m_sync_active)
 	{
@@ -606,11 +660,103 @@ void CaptureNode::pause_sync()
 	}
 }
 
-void CaptureNode::resume_sync(bool recording)
+void CaptureNode::start_recording_sync()
 {
-	if (m_sync.get() && !m_sync_active)
+	if (m_sync.get())
 	{
-		m_sync->start(m_global_framerate, m_global_pulse_duration, m_external_sync_always || (recording&&m_external_sync_while_recording));
+		m_sync->start(m_global_framerate, m_global_pulse_duration, m_external_sync_recording);
 		m_sync_active = true;
+	}
+}
+
+void CaptureNode::start_preview_sync()
+{
+	if (m_sync.get())
+	{
+		m_sync->start(m_global_framerate, m_global_pulse_duration, m_external_sync_preview);
+		m_sync_active = true;
+	}
+}
+
+void CaptureNode::GenericMessage(const std::string& msg)
+{
+	//printf("DEBUG> Generic Message Received: %s\n", msg.c_str());
+
+	for (auto listener : PythonEngine::Instance().m_notification_listeners)
+	{
+		listener->receiveMessage(msg.c_str());
+	}
+}
+
+void CaptureNode::ChangeState(CaptureNodeState fromState, CaptureNodeState toState)
+{
+	printf("DEBUG> State Change from %s to %s\n", stateToString(fromState), stateToString(toState));
+
+	for (auto listener : PythonEngine::Instance().m_notification_listeners)
+	{
+		listener->changeState(stateToString(toState));
+	}
+
+	switch (toState) {
+	case STATE_PREVIEW:
+		start_preview_sync();
+		break;
+
+	case STATE_SINGLESHOT_PREPARE1:
+	case STATE_BURST_PREPARE1:
+		prepare_single();
+		break;
+	case STATE_SINGLESHOT_PREPARE2:
+	case STATE_BURST_PREPARE2:
+		prepare_multi_stage2();
+		break;
+	case STATE_SINGLESHOT_START:
+	case STATE_BURST_START:
+		recording_trigger();
+		break;
+	case STATE_SINGLESHOT_FINALIZE:
+	case STATE_BURST_FINALIZE:
+		finalize_single();
+		break;
+
+	case STATE_CONTINUOUS_PREPARE1:
+		prepare_multi_stage1();
+		break;
+	case STATE_CONTINUOUS_PREPARE2:
+		prepare_multi_stage2();
+		break;
+	case STATE_CONTINUOUS_START:
+		recording_trigger();
+		break;
+	case STATE_STOP_SYNC:
+		stop_sync(); // Stop recording pulses
+		break;
+	case STATE_STOP:
+		stop_recording_all();
+		break;
+	}
+}
+
+static const char * stateToString(CaptureNodeState s)
+{
+	switch (s) {
+#define BUILD_ENUM_CASE(s) case s: return #s
+	BUILD_ENUM_CASE(STATE_PREVIEW);
+	BUILD_ENUM_CASE(STATE_SINGLESHOT_PREPARE1);
+	BUILD_ENUM_CASE(STATE_SINGLESHOT_PREPARE2);
+	BUILD_ENUM_CASE(STATE_SINGLESHOT_START);
+	BUILD_ENUM_CASE(STATE_SINGLESHOT_FINALIZE);
+	BUILD_ENUM_CASE(STATE_BURST_PREPARE1);
+	BUILD_ENUM_CASE(STATE_BURST_PREPARE2);
+	BUILD_ENUM_CASE(STATE_BURST_START);
+	BUILD_ENUM_CASE(STATE_BURST_FINALIZE);
+	BUILD_ENUM_CASE(STATE_CONTINUOUS_PREPARE1);
+	BUILD_ENUM_CASE(STATE_CONTINUOUS_PREPARE2);
+	BUILD_ENUM_CASE(STATE_CONTINUOUS_START);
+	BUILD_ENUM_CASE(STATE_STOP_SYNC);
+	BUILD_ENUM_CASE(STATE_STOP);
+	BUILD_ENUM_CASE(STATE_EXIT);	
+#undef BUILD_ENUM_CASE
+	default: return "UNKNOWN";
 	}
 }

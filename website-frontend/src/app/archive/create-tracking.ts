@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2017 Electronic Arts Inc. All Rights Reserved 
+// Copyright (c) 2018 Electronic Arts Inc. All Rights Reserved 
 //
 
 import {Component, ElementRef} from '@angular/core';
@@ -21,7 +21,6 @@ export class CreateTrackingPage {
 
   ct_take_id = null;
   ct_take_info : any = null;
-  ct_calib_path = '';
   ct_start_time = 0.0;
   ct_start_frame = 0;
   ct_end_time = 0.0;
@@ -30,15 +29,24 @@ export class CreateTrackingPage {
   ct_duration = 100;
 
   location = null;
+  messages : string = "";
+
+  working = false;
 
   constructor(el: ElementRef, private archiveService: ArchiveService, private route: ActivatedRoute, router: Router, private _location: Location) {
       this.location = _location;
   }
 
+  trackById(index: number, something : any) {
+    return something.id;
+  }
+
   onChangeStartFrame() {
 
+    this.messages = "";
+
     var video = (<any>document.getElementById('createTrackingAssetModalVideo0'));
-    this.ct_duration = video.duration * this.ct_fps;
+    this.ct_duration = (video.duration * this.ct_fps) - 1;
 
     this.ct_start_time = this.ct_start_frame / this.ct_fps;
     video.currentTime = this.ct_start_time;
@@ -46,8 +54,10 @@ export class CreateTrackingPage {
 
   onChangeEndFrame() {
 
+    this.messages = "";
+
     var video = (<any>document.getElementById('createTrackingAssetModalVideo1'));
-    this.ct_duration = video.duration * this.ct_fps;
+    this.ct_duration = (video.duration * this.ct_fps) - 1;
 
     this.ct_end_time = this.ct_end_frame / this.ct_fps;
     video.currentTime = this.ct_end_time;
@@ -57,14 +67,25 @@ export class CreateTrackingPage {
       this._location.back();
   }
 
-  onCreateTrackingAsset() {
+  onCreateTrackingAsset(quit : boolean) {
 
-      this.archiveService.createTrackingAsset(this.ct_take_info.id, this.ct_calib_path, this.ct_start_time, this.ct_end_time).subscribe(
+      this.working = true;
+
+      this.archiveService.createTrackingAsset(this.ct_take_info.id, this.ct_start_time, this.ct_end_time).subscribe(
         data => {
-          this._location.back();
+          this.working = false;
+          if (quit) {
+            this._location.back();
+          } else {
+            this.messages = "Range created from frame #" + this.ct_start_frame + " to frame #" + this.ct_end_frame + ".";
+            this.ct_start_frame = this.ct_end_frame;
+            this.onChangeStartFrame()
+            this.updateData();
+          }          
         },
         err => {
-            this.error_message = err;
+          this.working = false;
+          this.error_message = err;
         },
         () => {}
       );
@@ -80,30 +101,32 @@ export class CreateTrackingPage {
     return null;
   }
 
+  updateData() {
+    this.archiveService.getTake(this.ct_take_id).subscribe(
+      data => {
+          this.ct_take_info = data;
+
+          if (this.ct_take_info.frontal_cam_uid) {
+              // search for this camera in the take info, to get fps from frontal camera (used for preview)
+              var cam : any = this.find_cam(this.ct_take_info.cameras, this.ct_take_info.frontal_cam_uid);
+              if (cam) {
+                  this.ct_fps = cam.framerate;
+              }
+          }
+
+      },
+      err => console.error(err),
+      () => {}
+    );
+  }
+
   ngOnInit(): void {
 
     // Get Take Id from URL
     this.route.params.forEach((params: Params) => {
 
         this.ct_take_id = +params['id'];
-
-        this.archiveService.getTake(this.ct_take_id).subscribe(
-            data => {
-                this.ct_take_info = data;
-
-                if (this.ct_take_info.frontal_cam_uid) {
-                    // search for this camera in the take info, to get fps from frontal camera (used for preview)
-                    var cam : any = this.find_cam(this.ct_take_info.cameras, this.ct_take_info.frontal_cam_uid);
-                    if (cam) {
-                        this.ct_fps = cam.framerate;
-                    }
-                }
-
-            },
-            err => console.error(err),
-            () => {}
-        );
-
+        this.updateData();
     });
 
   }

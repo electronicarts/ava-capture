@@ -1,22 +1,22 @@
 //
-// Copyright (c) 2017 Electronic Arts Inc. All Rights Reserved 
+// Copyright (c) 2018 Electronic Arts Inc. All Rights Reserved 
 //
 
 // logged-in.guard.ts
 // Prevent page access if the user is not logged in
 
 import { Injectable } from '@angular/core';
-import { Router, CanActivate } from '@angular/router';
+import { Router, CanActivate, ActivatedRouteSnapshot, RouterStateSnapshot } from '@angular/router';
 import { UserService } from '../services/user.service';
 
 @Injectable()
 export class LoggedInGuard implements CanActivate {
   constructor(private user: UserService, private router: Router) {}
 
-  canActivate() {
+  canActivate(route: ActivatedRouteSnapshot, state: RouterStateSnapshot) {
     if (this.user.isLoggedIn())
         return true;
-    this.router.navigate(['/login']);
+    this.router.navigate(['/login'], {queryParams: { returnUrl: state.url}});
     return false;
 
   }

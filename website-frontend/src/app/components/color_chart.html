@@ -1,0 +1,22 @@
+<div *ngIf="!take">
+        Loading...
+</div>  
+<div *ngIf="take">
+    <div>COLOR CHART Take:{{take.id}}</div>
+
+    <div *ngIf="take.cameras">
+        <div>Camera:{{take.cameras[0].unique_id}}</div>
+        <div style="width:1000px; height:800px;">
+            <colorcharteditor 
+                [width]="1000"
+                [height]="800"
+                [originalwidth]="take.cameras[0].width" 
+                [originalheight]="take.cameras[0].height" 
+                [img]="'/static/thumb/' + take.cameras[0].thumbnail_filename"
+                (coordinates)="coordinates"
+                ></colorcharteditor>
+        </div>
+    </div>
+    <div>{{coordinates}}</div>
+</div>
+    

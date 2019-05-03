@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2017 Electronic Arts Inc. All Rights Reserved 
+// Copyright (c) 2018 Electronic Arts Inc. All Rights Reserved 
 //
 
 import { Component, Input, Output, EventEmitter, ElementRef } from '@angular/core';
@@ -13,6 +13,7 @@ var $ = require("jquery");
 })
 export class SetFrameDialog {
 
+  asset_type : string = null;
   asset_data : any = null;
   take_data : any = null;
   frame_name : string;
@@ -31,7 +32,7 @@ export class SetFrameDialog {
   videoLoaded() {
     var video = (<any>document.getElementById('setFrameVideo0'));
     if (video) {
-      this.duration_frame = video.duration * this.fps;     
+      this.duration_frame = (video.duration * this.fps) - 1;     
     }
   }
 
@@ -53,7 +54,8 @@ export class SetFrameDialog {
     }   
   }
   
-  show(asset: any, frame_name : string, frame_key: string, frame_time : number) {
+  show(asset_type : string, asset: any, frame_name : string, frame_key: string, frame_time : number) {
+    this.asset_type = asset_type;
     this.asset_data = asset;
     this.frame_name = frame_name;
     this.frame_key = frame_key;
@@ -76,7 +78,6 @@ export class SetFrameDialog {
                   this.frame_frame = frame_time * this.fps;
               }
           }
-
       },
       err => console.error(err),
       () => {}
@@ -88,17 +89,66 @@ export class SetFrameDialog {
     ($(this.el.nativeElement).find('div:first')).removeClass('modal-dialog-container-show');
   }
 
+  onClear(event) {
+    // Clear the value (set to Null in database)
+
+    event.target.disabled = true;
+
+    if (this.asset_type == 'scan') {
+
+      this.archiveService.setStaticAssetFrame(this.asset_data.id, this.frame_key, null).subscribe(
+        data => {},
+        err => console.error(err),
+        () => {
+
+          setTimeout(() => {
+
+            event.target.disabled = false;
+
+            ($(this.el.nativeElement).find('div:first')).removeClass('modal-dialog-container-show');
+
+          }, 500);
+
+        }
+      );
+      
+    }
+    if (this.asset_type == 'tracking') {
+      
+      this.archiveService.setTrackingAssetFrame(this.asset_data.id, this.frame_key, null).subscribe(
+        data => {},
+        err => console.error(err),
+        () => {
+
+          setTimeout(() => {
+
+            event.target.disabled = false;
+
+            ($(this.el.nativeElement).find('div:first')).removeClass('modal-dialog-container-show');
+
+          }, 500);
+
+        }
+      );
+
+    }
+
+  }
+
   onSetFrame(event) {
 
     event.target.disabled = true;
     event.target.classList.add('btn-destructive');
 
-    // var params_str = JSON.stringify(this.params);
+    if (this.asset_type == 'scan') {
 
-    this.archiveService.setStaticAssetFrame(this.asset_data.id, this.frame_key, this.frame_time).subscribe(
+      this.archiveService.setStaticAssetFrame(this.asset_data.id, this.frame_key, this.frame_time).subscribe(
         data => {},
         err => console.error(err),
         () => {
+
+          // Also launch thumbnails job in bg
+          this.archiveService.createScanAssetThumbnailsJob(this.asset_data.id, this.frame_key).subscribe(data=>{});
 
           setTimeout(() => {
 
@@ -111,6 +161,31 @@ export class SetFrameDialog {
 
         }
       );
+
+    }      
+    if (this.asset_type == 'tracking') {
+
+      this.archiveService.setTrackingAssetFrame(this.asset_data.id, this.frame_key, this.frame_time).subscribe(
+        data => {},
+        err => console.error(err),
+        () => {
+
+          // Also launch thumbnails job in bg
+          this.archiveService.createTrackingAssetThumbnailsJob(this.asset_data.id, this.frame_key).subscribe(data=>{});
+
+          setTimeout(() => {
+
+            event.target.disabled = false;
+            event.target.classList.remove('btn-destructive');
+
+            ($(this.el.nativeElement).find('div:first')).removeClass('modal-dialog-container-show');
+
+          }, 500);
+
+        }
+      );
+
+    }      
     
   }
 

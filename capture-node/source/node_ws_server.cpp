@@ -8,7 +8,11 @@
 
 #include <boost/algorithm/string.hpp>
 
-#ifdef USE_TLS_WEBSOCKET
+// Explicit specialization
+template class NodeWSServer<strategy::Secure>;
+template class NodeWSServer<strategy::Normal>;
+template class WSServer<strategy::Secure>;
+template class WSServer<strategy::Normal>;
 
 typedef websocketpp::lib::shared_ptr<boost::asio::ssl::context> context_ptr;
 
@@ -37,36 +41,51 @@ context_ptr on_tls_init(websocketpp::connection_hdl)
     return ctx;
 }
 
-#endif // USE_TLS_WEBSOCKET
+template <>
+void WSServer<strategy::Normal>::extra_init(int port)
+{
+    std::cout << "WEBSOCKET Listening on port " << port << std::endl;
+}
 
-WSServer::WSServer(int port)
+template <>
+void WSServer<strategy::Secure>::extra_init(int port)
+{
+    std::cout << "WEBSOCKET Listening on port " << port << " (Secure)" << std::endl;
+
+    server.set_tls_init_handler(&on_tls_init);
+}
+
+template <class S>
+WSServer<S>::WSServer(int port)
 {
     server.init_asio();
 	server.set_reuse_addr(true);
-#ifdef USE_TLS_WEBSOCKET
-    server.set_tls_init_handler(&on_tls_init);
-#endif
+    extra_init(port);
     server.clear_access_channels(websocketpp::log::alevel::frame_header | websocketpp::log::alevel::frame_payload); 
     server.set_message_handler(std::bind(&WSServer::on_message, this, std::placeholders::_1, std::placeholders::_2));
     server.listen(port);
     server.start_accept();   
 }
 
-WSServer::~WSServer()
+template <class S>
+WSServer<S>::~WSServer()
 {
 }
 
-void WSServer::serve_forever_in_thread()
+template <class S>
+void WSServer<S>::serve_forever_in_thread()
 {
 	runner = boost::thread([this]() {this->serve_forever(); });
 }
 
-void WSServer::serve_forever()
+template <class S>
+void WSServer<S>::serve_forever()
 {
     server.run();
 }
 	
-void WSServer::close()
+template <class S>
+void WSServer<S>::close()
 {
     //std::cout << "WEBSOCKET> Shutting down" << std::endl;
 
@@ -75,26 +94,31 @@ void WSServer::close()
     runner.join();
 }
 
-void WSServer::on_message(websocketpp::connection_hdl hdl, serverT::message_ptr msg)
+template <class S>
+void WSServer<S>::on_message(websocketpp::connection_hdl hdl, typename S::serverT::message_ptr msg)
 {
     //std::cout << "WEBSOCKET> message:" << msg->get_payload() << std::endl;
 }
 
-void WSServer::send(websocketpp::connection_hdl hdl, const std::string& s)
+template <class S>
+void WSServer<S>::send(websocketpp::connection_hdl hdl, const std::string& s)
 {
     server.send(hdl, s, websocketpp::frame::opcode::text);
 }
 
-NodeWSServer::NodeWSServer(std::shared_ptr<CaptureNode> pNode, int port)
-  : WSServer(port), m_node(pNode)
+template <class S>
+NodeWSServer<S>::NodeWSServer(std::shared_ptr<CaptureNode> pNode, int port)
+  : WSServer<S>(port), m_node(pNode)
+{    
+}
+
+template <class S>
+NodeWSServer<S>::~NodeWSServer()
 {
 }
 
-NodeWSServer::~NodeWSServer()
-{
-}
-
-void NodeWSServer::on_message(websocketpp::connection_hdl hdl, serverT::message_ptr msg)
+template <class S>
+void NodeWSServer<S>::on_message(websocketpp::connection_hdl hdl, typename S::serverT::message_ptr msg)
 {
     //std::cout << "WEBSOCKET> message:" << msg->get_payload() << std::endl;
 
@@ -118,7 +142,7 @@ void NodeWSServer::on_message(websocketpp::connection_hdl hdl, serverT::message_
             std::vector<unsigned char> buf;
             if (cam->get_large_preview_image(buf))
             {
-        	    send(hdl, base64encode(buf));
+        	    WSServer<S>::send(hdl, base64encode(buf));
             }
         }
         else if (action=="preview")
@@ -127,7 +151,7 @@ void NodeWSServer::on_message(websocketpp::connection_hdl hdl, serverT::message_
             bool is_histogram = false;
             if (cam->get_preview_image(buf), &is_histogram)
             {
-        	    send(hdl, camUniqueId + ";" + base64encode(buf));
+        	    WSServer<S>::send(hdl, camUniqueId + ";" + base64encode(buf));
             }
         }
     }

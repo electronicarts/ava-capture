@@ -6,7 +6,11 @@
 #include "server_uplink.hpp"
 #include "embedded_python.hpp"
 
-#include "build_generated.h"
+#ifdef WIN32
+	#define GIT_REVISION "unknown" // TODO Set revision in the build script, just like in linux
+#else
+	#include "build_generated.h"
+#endif
 
 #ifdef WIN32
 	#include <conio.h>
@@ -81,6 +85,7 @@ void signal_recieved(int sig)
 int main(int argc, char** argv)
 {
 	#ifndef WIN32
+	signal(SIGTERM, signal_recieved);
 	signal(SIGINT, signal_recieved);
 	signal(SIGHUP, signal_recieved);
 	#endif
@@ -101,7 +106,7 @@ int main(int argc, char** argv)
 #ifdef WITH_PORTAUDIO		
 		("audio", po::bool_switch()->default_value(false), "Initialize default audio capture device")
 #endif
-		("folder", po::value<std::string>()->default_value(std::string()), "Folder where recordings are stored");
+		("folder,f", po::value<std::vector<std::string>>()->multitoken(), "Folder where recordings are stored");
 	po::variables_map vm;
 	try
 	{
@@ -125,25 +130,32 @@ int main(int argc, char** argv)
 
 	// Launch Node, Server, ServerUplink
 
+	int rcode = 0;
 	const bool use_webcams = vm["webcams"].as<bool>();
 	const bool run_as_service = vm["service"].as<bool>();
-
-#ifdef WITH_PORTAUDIO
+	#ifdef WITH_PORTAUDIO
 	const bool use_audio = vm["audio"].as<bool>();
 #else
 	const bool use_audio = false;
 #endif
 	const bool use_dummycam = vm["dummy"].as<bool>();
-	std::string folder = vm["folder"].as<std::string>();
 
-	std::shared_ptr<CaptureNode> node(new CaptureNode(use_webcams, use_audio, use_dummycam, folder));
+	std::vector<std::string> folders;
+	if (!vm["folder"].empty())
+		folders = vm["folder"].as<std::vector<std::string> >();
+
+	std::shared_ptr<CaptureNode> node(new CaptureNode(use_webcams, use_audio, use_dummycam, folders));
 
 	// HTTP Server
 	NodeHttpServer httpd(node, 8080);
 	boost::thread http_thread([&httpd]() {httpd.serve_forever(); });
 
 	// Websocker Server
-	NodeWSServer wdd(node, 9002);
+#ifdef USE_TLS_WEBSOCKET	
+	NodeWSServer<strategy::Secure> wdds(node, 9003);
+	wdds.serve_forever_in_thread();
+#endif 
+	NodeWSServer<strategy::Normal> wdd(node, 9002);
 	wdd.serve_forever_in_thread();
 
 	// Up-link to server
@@ -154,6 +166,12 @@ int main(int argc, char** argv)
 
 	if (run_as_service)
 	{
+		if (!uplink.isConnected())
+		{
+			rcode = 40; // indicate that we could not connect, and exit
+			exit_requested = true;
+		}
+
 		while (!exit_requested && !node->shutdown_requested())
 		{
 			boost::this_thread::sleep_for(boost::chrono::milliseconds(500));
@@ -188,6 +206,7 @@ int main(int argc, char** argv)
 			std::cout <<
 				"Q:Quit" << std::endl <<
 				"T:Record one frame (all cameras)" << std::endl <<
+				"B:Record 5 frame Burst (all cameras)" << std::endl <<
 				"S:Stop recording/abort (all cameras)" << std::endl <<
 				"R:Start recording (all cameras)" << std::endl <<
 				"F:Change hardware sync frequency (and enable HWSync on all camera)" << std::endl <<
@@ -240,6 +259,11 @@ int main(int argc, char** argv)
 				if (node->can_record())
 					node->record_image_sequence(1);
 				break;
+			case 'b':
+				// Capture a single frame from all cameras
+				if (node->can_record())
+					node->record_image_sequence(5);
+				break;
 			case 'r':
 				// Begin recording AVI / MKV
 				if (node->can_record())
@@ -247,9 +271,9 @@ int main(int argc, char** argv)
 				break;
 			case 's':
 				// Stop Recording all cameras
-				node->pause_sync();
-				node->stop_recording_all();
-				node->resume_sync(false);
+				node->GotoState(STATE_STOP_SYNC);
+				node->GotoState(STATE_STOP);
+				node->GotoState(STATE_PREVIEW);
 				break;
 			case 'f':
 				{
@@ -304,9 +328,14 @@ int main(int argc, char** argv)
 		}
 	}
 
+	node->GotoState(STATE_EXIT);
+
 	// Close Webserver and Websocet Server
 	httpd.close();
 	http_thread.join();	
+#ifdef USE_TLS_WEBSOCKET	
+	wdds.close();
+#endif	
 	wdd.close();
 
 	if (node->shutdown_requested())
@@ -319,5 +348,5 @@ int main(int argc, char** argv)
 		std::cout << "Shutting Down..." << std::endl;
 	}
 
-	return 0;
+	return rcode;
 }

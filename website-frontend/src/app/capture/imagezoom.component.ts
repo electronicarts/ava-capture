@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2017 Electronic Arts Inc. All Rights Reserved 
+// Copyright (c) 2018 Electronic Arts Inc. All Rights Reserved 
 //
 
 import {Component, ViewEncapsulation, Output, EventEmitter} from '@angular/core';
@@ -12,6 +12,7 @@ import {Component, ViewEncapsulation, Output, EventEmitter} from '@angular/core'
 export class ImageZoomComponent {
 
   @Output() onSetROI = new EventEmitter<number[]>();
+  @Output() onSetROIPercent = new EventEmitter<number>();
   @Output() onResetROI = new EventEmitter<void>();  
 
   my_canvas = null;
@@ -55,29 +56,19 @@ export class ImageZoomComponent {
 
       switch (template_index) {
         case 0: // Crop Center 95%
-          var width = Math.floor(W*0.95);
-          var height = Math.floor(H*0.95);
-          this.onSetROI.emit([Math.floor((W-width)/2),Math.floor((H-height)/2),width,height]);
+          this.onSetROIPercent.emit(95);
           break;
         case 1: // Crop Center 90%
-          var width = Math.floor(W*0.9);
-          var height = Math.floor(H*0.9);
-          this.onSetROI.emit([Math.floor((W-width)/2),Math.floor((H-height)/2),width,height]);
+          this.onSetROIPercent.emit(90);
           break;
         case 2: // Crop Center 50%
-          var width = Math.floor(W*0.5);
-          var height = Math.floor(H*0.5);
-          this.onSetROI.emit([Math.floor((W-width)/2),Math.floor((H-height)/2),width,height]);
+          this.onSetROIPercent.emit(50);
           break;
         case 3: // Crop Center 30%
-          var width = Math.floor(W*0.3);
-          var height = Math.floor(H*0.3);
-          this.onSetROI.emit([Math.floor((W-width)/2),Math.floor((H-height)/2),width,height]);
+          this.onSetROIPercent.emit(30);
           break;
         case 4: // Crop Center 15%
-          var width = Math.floor(W*0.15);
-          var height = Math.floor(H*0.15);
-          this.onSetROI.emit([Math.floor((W-width)/2),Math.floor((H-height)/2),width,height]);
+          this.onSetROIPercent.emit(15);
           break;
         case 5: // Make Square
           var d = Math.min(W,H);
@@ -108,7 +99,8 @@ export class ImageZoomComponent {
         this.my_canvas.height = window.innerHeight;
 
         this.my_ctx.resetTransform();
-        this.my_ctx.clearRect(0, 0, this.my_canvas.width, this.my_canvas.height);
+        this.my_ctx.fillStyle="#303030";
+        this.my_ctx.fillRect(0, 0, this.my_canvas.width, this.my_canvas.height);
 
         // Draw main image from camera
         this.my_ctx.translate(this.my_canvas.width / 2, this.my_canvas.height / 2);

@@ -1,11 +1,12 @@
 //
-// Copyright (c) 2017 Electronic Arts Inc. All Rights Reserved 
+// Copyright (c) 2018 Electronic Arts Inc. All Rights Reserved 
 //
 
 import {Component, ViewEncapsulation} from '@angular/core';
 import {Router, NavigationEnd} from '@angular/router';
 
 import { CaptureService } from '../capture/capture.service';
+import { CoreComponent } from '../core/core.component';
 
 import { LoadDataEveryMs } from '../../utils/reloader';
 
@@ -14,8 +15,8 @@ import { LoadDataEveryMs } from '../../utils/reloader';
   template: `
     <div class="section_select">
         <div>
-            <div class="title">Live Capture</div>
-            <div>
+          <div class="title">Live Capture</div>
+          <div *ngIf="!loading">
             <span class="label">Location:</span>
             <select [(ngModel)]="selected_location" (ngModelChange)="onChangeCaptureLocation($event)">
               <option value="0">Please select a location</option>
@@ -25,7 +26,7 @@ import { LoadDataEveryMs } from '../../utils/reloader';
                 <span *ngIf="loc.active">({{loc.active}})</span>
               </option>
             </select>            
-            </div>
+          </div>
         </div>
     </div>
 
@@ -40,10 +41,11 @@ export class CapturePageSelect {
 
   selected_location = 0;
   locations = [];
+  loading : boolean = true;
 
   loader = new LoadDataEveryMs();
 
-  constructor (private router: Router, private captureService: CaptureService) {
+  constructor (private router: Router, private captureService: CaptureService, private coreComponent: CoreComponent) {
     this.router = router;
 
     router.events.subscribe((val) => {
@@ -51,6 +53,7 @@ export class CapturePageSelect {
             // Notification each time the route changes, so that we can change the select dropdown
             if (val.urlAfterRedirects.startsWith('/app/capture/live-capture/')) {
               this.selected_location = Number(val.urlAfterRedirects.split('/')[4]);
+              this.coreComponent.setCurrentLocation(this.selected_location);
             }
         }
     });
@@ -71,7 +74,16 @@ export class CapturePageSelect {
 
       this.loader.start(5000, () => { return this.captureService.getSystemInformation(); }, data => {
           this.locations = data.locations;
-        });    
+          this.loading = false;
+          
+          if (this.coreComponent.getCurrentLocation()>0 && this.selected_location != this.coreComponent.getCurrentLocation()) {
+            this.router.navigate(['app', 'capture', 'live-capture', this.coreComponent.getCurrentLocation()]);
+          }
+        }, 
+        err => {
+          this.loading = false;
+        }, 
+        'getSystemInformation'); // cache key
   }
 
   ngOnDestroy() {

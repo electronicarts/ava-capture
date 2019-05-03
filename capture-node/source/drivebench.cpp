@@ -174,4 +174,43 @@ std::vector<std::pair<std::string, size_t> > get_recording_folder_list()
 	return results;
 }
 
+#else
+
+std::vector<std::string> get_possible_folder_list()
+{
+	std::vector<std::string> list;
+	list.push_back(std::string(getenv("HOME"))+"/Pictures");
+	return list;
+}
+
+std::vector<std::pair<std::string, size_t> > get_recording_folder_list()
+{	
+	namespace fs = boost::filesystem;
+
+	std::vector<std::pair<std::string, size_t> > results;
+
+	// Returns a list of folders that can be used for recording, with the recording speed.
+	// Returns an approximation of the drive write speed (MB/s)
+
+	std::vector<std::string> folders = get_possible_folder_list();
+
+	for (auto& folder : folders)
+	{
+		fs::path dir(folder);
+
+		size_t speed = get_drive_speed(dir);
+
+		if (speed == 0)
+			continue;
+
+		results.push_back(std::make_pair(dir.string(), speed));
+	}
+
+	std::sort(results.begin(), results.end(), [](std::pair<std::string, size_t> a, std::pair<std::string, size_t> b) {
+		return b.second < a.second;
+	});
+
+	return results;
+}
+
 #endif

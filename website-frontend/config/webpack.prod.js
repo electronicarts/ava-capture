@@ -1,6 +1,5 @@
 var webpack = require('webpack');
 var webpackMerge = require('webpack-merge');
-var ExtractTextPlugin = require('extract-text-webpack-plugin');
 var HtmlWebpackPlugin = require('html-webpack-plugin');
 var CompressionPlugin = require('compression-webpack-plugin');
 var commonConfig = require('./webpack.common.js');
@@ -17,6 +16,8 @@ var metadata = {
 };
 
 module.exports = webpackMerge(commonConfig, {
+
+  mode: 'production',
   devtool: 'source-map',
 
   output: {
@@ -28,15 +29,15 @@ module.exports = webpackMerge(commonConfig, {
 
   plugins: [
     new webpack.NoEmitOnErrorsPlugin(),
-    new webpack.optimize.UglifyJsPlugin({ // https://github.com/angular/angular/issues/10618
-      mangle: {
-        keep_fnames: true
-      }
-    }),
-    new ExtractTextPlugin('[name].[hash].css'),
     new webpack.DefinePlugin({
       'process.env': {
-        'ENV': JSON.stringify(ENV)
+        'ENV': JSON.stringify(ENV),
+
+        // Get these variables from the environment variables
+        'GIT_VERSION': JSON.stringify(process.env.GIT_VERSION),
+        'AUTH_URL': JSON.stringify(process.env.AUTH_URL),
+        'AUTH_CLIENT_ID': JSON.stringify(process.env.AUTH_CLIENT_ID),
+        'AUTH_REDIRECT_URI': JSON.stringify(process.env.AUTH_REDIRECT_URI),
       }
     }),
     new webpack.LoaderOptionsPlugin({
@@ -51,14 +52,8 @@ module.exports = webpackMerge(commonConfig, {
     }),
     new HtmlWebpackPlugin({
       template: 'src/index.html',
-      metadata: metadata,
+      metadata: metadata
     }),
-    new CompressionPlugin({
-			asset: "[path].gz[query]",
-			algorithm: "gzip",
-			test: /\.(js|html)$/,
-			threshold: 10240,
-			minRatio: 0.8
-    })
+    new CompressionPlugin()
   ]
 });

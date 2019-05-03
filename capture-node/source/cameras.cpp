@@ -44,6 +44,7 @@ Camera::Camera()
 	m_preview_width = default_preview_res;
 	m_preview_height = default_preview_res;
 	m_color_need_debayer = false;
+	m_record_as_raw = false;
 
 	m_bayerpattern = cv::COLOR_BayerBG2RGB;
 
@@ -97,6 +98,41 @@ bool Camera::block_until_next_frame(double timeout_s)
 	return false;
 }
 
+int overexposedDisplay(const cv::Mat& source, cv::Mat& output)
+{
+	const int overexposed_threshold = 254;
+
+	cv::Mat gray = source;
+
+	if (gray.channels() == 3)
+	{
+		// get the max value of each channel, because we only care about overexposed pixels
+		cv::Mat sourceChannels[3];
+		cv::split(source, sourceChannels);
+		cv::max(sourceChannels[0],sourceChannels[1],gray);
+		cv::max(sourceChannels[2],gray,gray);
+	}
+
+	cv::Mat work;
+	cv::threshold(gray, work, overexposed_threshold, 255, cv::THRESH_BINARY);
+	cv::Mat kernel = cv::Mat::ones(5, 5, CV_8U);
+	cv::dilate(work, work, kernel, cv::Point(-1, -1), 2);
+
+	cv::Mat R;
+	cv::max(work, gray, R);
+
+	const int overexposedPixels = countNonZero(work);
+
+	cv::Mat GB;
+	cv::Mat invert = cv::Scalar::all(255) - work;
+	cv::min(invert, gray, GB);
+
+	cv::Mat arr[] = { GB, GB, R };	
+	cv::merge(arr, 3, output);
+
+	return overexposedPixels;
+}
+
 void Camera::got_image(cv::Mat img, double ts, int width, int height, int bitcount, int channels, int black_level)
 {
 	// Called by the camera implementation each time we recieve a new image
@@ -146,17 +182,25 @@ void Camera::got_image(cv::Mat img, double ts, int width, int height, int bitcou
 			const bool NORMALIZE_BRIGHTNESS = true;
 			const bool TEMPORAL_DENOISE = false; // average 4 frames to reduce noise
 			const int BLUR_SIZE = 151; // must be odd
-			const int BRIGHTNESS_THRESHOLD = 16; // focus peak will not run if mean brightness is less than this value (too dark)
+			const int BRIGHTNESS_THRESHOLD = 5; // focus peak will not run if mean brightness is less than this value (too dark)
 		
 			cv::Mat last_image;
 			cv::Mat work;
 
 			if (m_color_need_debayer && img.channels() == 1)
-				cv::resize(img, last_image, cv::Size(0, 0), 0.5, 0.5, cv::INTER_NEAREST); // Color Camera Bayer: skip debayer by resizing
+			{
+				cv::Mat tempImage;
+				cv::cvtColor(img, tempImage, m_bayerpattern);
+				cv::cvtColor(tempImage, last_image, cv::COLOR_BGR2GRAY);
+			}
 			else if (img.channels() == 3)
+			{
 				cv::cvtColor(img, last_image, cv::COLOR_BGR2GRAY); // Native Color Camera BGR
+			}
 			else
+			{
 				last_image = img.clone(); // Grayscale camera
+			}
 
 			if (m_bitcount > 8) // convert the image to 8 bit range
 				last_image.convertTo(last_image, CV_8U, 1.0f / (1 << (m_bitcount - 8)));
@@ -218,30 +262,24 @@ void Camera::got_image(cv::Mat img, double ts, int width, int height, int bitcou
 			cv::Mat work;
 
 			if (m_color_need_debayer && img.channels() == 1)
-				cv::resize(img, last_image, cv::Size(0, 0), 0.5, 0.5, cv::INTER_NEAREST); // Color Camera Bayer: skip debayer by resizing
-			else if (img.channels() == 3)
-				cv::cvtColor(img, last_image, cv::COLOR_BGR2GRAY); // Native Color Camera BGR
+			{
+				// Need to de-bayer to check overexposure
+				// Important: we need to follow the same post-processing as SimpleImageRecorder::writingThread()
+				cv::cvtColor(img, last_image, m_bayerpattern);
+				color_correction::apply(last_image, m_color_balance, black_level);
+			}
 			else
-				last_image = img.clone(); // Grayscale camera
+			{
+				last_image = img.clone(); // Grayscale or native color camera
+			}
 
 			if (m_bitcount > 8) // convert the image to 8 bit range, the histogram expects values from 0 to 255
 				last_image.convertTo(last_image, CV_8U, 1.0f / (1 << (m_bitcount - 8)));
 
 			// Overexposure check : display red overlay for overexposed areas
-			int overexposed_threshold = 250;
-			cv::threshold(last_image, work, overexposed_threshold, 255, cv::THRESH_BINARY);
-			cv::Mat kernel = cv::Mat::ones(5, 5, CV_8U);
-			cv::dilate(work, work, kernel, cv::Point(-1, -1), 2);
-			cv::Mat R;
-			cv::max(work, last_image, R);
-			cv::Mat GB;
-			cv::Mat invert = cv::Scalar::all(255) - work;
-			cv::min(invert, last_image, GB);
-			cv::Mat arr[] = { GB, GB, R };
+			overexposedDisplay(last_image, img);
 
 			cv::Mat new_preview_image;
-
-			cv::merge(arr, 3, img);
 			cv::resize(img, new_preview_image, cv::Size(m_preview_width, m_preview_height), 0.0, 0.0, cv::INTER_NEAREST);
 			color_correction::linear_to_sRGB(new_preview_image);
 
@@ -351,7 +389,7 @@ void Camera::got_image(cv::Mat img, double ts, int width, int height, int bitcou
 	//	printf("%f\n", dt);
 
 	// Recording
-	if (m_recording)
+	if (m_recording && !m_recorders.empty())
 	{
 		if (m_waiting_for_trigger && !m_waiting_for_trigger_hold)
 		{
@@ -383,6 +421,7 @@ void Camera::got_image(cv::Mat img, double ts, int width, int height, int bitcou
 			{
 				recording_first_frame = img.clone();
 				recording_first_frame_black_level = black_level;
+				recording_first_frame_index = m_recorders[0]->frame_count();
 			}				
 
 			// Accumulate frames only if we are recording, and we are not waiting for the trigger
@@ -425,11 +464,10 @@ void Camera::start_recording(const std::vector<std::string>& folders, bool wait_
 		m_writing_buffers_used = 0;
 
 		if (nb_frames>0)
-			m_recorders.push_back(std::make_shared<SimpleImageRecorder>(unique_id(), framerate(), m_width, m_height, m_bitcount, m_color_need_debayer, m_bayerpattern, m_color_balance, folders));
+			m_recorders.push_back(std::make_shared<SimpleImageRecorder>(unique_id(), framerate(), m_width, m_height, m_bitcount, m_color_need_debayer, m_bayerpattern, m_color_balance, folders, m_record_as_raw));
 		else
-			m_recorders.push_back(std::make_shared<SimpleMovieRecorder>(unique_id(), framerate(), m_width, m_height, m_bitcount, folders));
+			m_recorders.push_back(std::make_shared<SimpleMovieRecorder>(unique_id(), framerate(), m_width, m_height, m_bitcount, m_color_need_debayer, m_bayerpattern, m_color_balance, folders, m_record_as_raw));
 		m_recorders.push_back(std::make_shared<MetadataRecorder>(unique_id(), framerate(), m_width, m_height, m_bitcount, m_color_need_debayer, m_color_balance, folders, this));
-
 
 		m_got_trigger_timeout = false;
 		m_closing_recorders = false;
@@ -438,7 +476,6 @@ void Camera::start_recording(const std::vector<std::string>& folders, bool wait_
 		m_waiting_delay = 3.0;
 		m_waiting_for_trigger_hold = true;
 		m_waiting_for_trigger = wait_for_trigger;
-
 	}
 }
 
@@ -479,8 +516,19 @@ void Camera::stop_recording()
 			d_camera.AddMember("height", height(), d->GetAllocator());
 			d_camera.AddMember("using_hardware_sync", using_hardware_sync(), d->GetAllocator());
 			d_camera.AddMember("error_trigger_timeout", m_got_trigger_timeout, d->GetAllocator());
-			
+
 			d->AddMember("camera", d_camera, d->GetAllocator());
+
+			// Add custom parameters
+			auto list = params_list();
+			rapidjson::Value d_params(rapidjson::kObjectType);
+			for (auto e : list)
+			{
+				rapidjson::Value strVal;
+				strVal.SetString(e.first.c_str(), d->GetAllocator());
+				d_params.AddMember(strVal, rapidjson::Value(param_get(e.first.c_str())), d->GetAllocator());
+			}			
+			d->AddMember("camera_params", d_params, d->GetAllocator());	
 
 			if (!recording_first_frame.empty())
 			{
@@ -499,10 +547,22 @@ void Camera::stop_recording()
 
 				color_correction::linear_to_sRGB(tempImage);
 
+				d->AddMember("thumbnail_index", recording_first_frame_index, d->GetAllocator());
+
 				std::vector<unsigned char> buf;
 				if (cv::imencode(".jpg", tempImage, buf))
 				{
 					d->AddMember("jpeg_thumbnail", rapidjson::Value(base64encode(buf).c_str(), d->GetAllocator()), d->GetAllocator());
+				}
+
+				cv::Mat tempImageOverexposed;
+				int overexposedPixels = overexposedDisplay(tempImage, tempImageOverexposed);
+				if (overexposedPixels > 0)
+				{
+					if (cv::imencode(".jpg", tempImageOverexposed, buf))
+					{
+						d->AddMember("jpeg_thumbnail_overexposed", rapidjson::Value(base64encode(buf).c_str(), d->GetAllocator()), d->GetAllocator());
+					}
 				}
 			}
 			else if (!preview_image.empty())
@@ -522,6 +582,13 @@ void Camera::stop_recording()
 			m_writing_buffers_used = 0;
 		}
 	}
+}
+
+void Camera::updateColorBalance(double r, double g, double b)
+{
+	m_color_balance.kR = r;
+	m_color_balance.kG = g;
+	m_color_balance.kB = b;
 }
 
 bool Camera::get_preview_image(std::vector<unsigned char>& buf, bool* pIsHistogram)
@@ -546,13 +613,10 @@ bool Camera::get_large_preview_image(std::vector<unsigned char>& buf)
 		if (large_preview_image.empty())
 			return false;
 
-		bool is_copy = false; // if tempImage is a copy of large_preview_image
-
 		if (m_color_need_debayer && large_preview_image.channels() == 1)
 		{
 			cv::cvtColor(large_preview_image, tempImage, m_bayerpattern);
 			color_correction::apply(tempImage, m_color_balance, large_preview_image_black_point);
-			is_copy = true;
 		}
 		else
 		{
@@ -562,11 +626,9 @@ bool Camera::get_large_preview_image(std::vector<unsigned char>& buf)
 		if (m_bitcount > 8 && tempImage.depth() != CV_8U) // If the image is more than 8 bit, shift values to convert preview to 8 bit range, for JPG encoding
 		{
 			tempImage.convertTo(tempImage, CV_8U, 1.0f / (1 << (m_bitcount - 8)));
-			is_copy = true;
 		}
 
-		if (!is_copy)
-			tempImage = tempImage.clone();
+		cv::resize(tempImage, tempImage, cv::Size(0, 0), 0.25, 0.25, cv::INTER_NEAREST);
 	}
 
 	color_correction::linear_to_sRGB(tempImage);

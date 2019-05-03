@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2017 Electronic Arts Inc. All Rights Reserved 
+// Copyright (c) 2018 Electronic Arts Inc. All Rights Reserved 
 //
 
 import { Component, Input, Output, ViewChild, EventEmitter } from '@angular/core';
@@ -156,8 +156,16 @@ export class ZoomViewComponent {
     this.imageLoader.next();
   }
 
+  setROIPercent(value : number) {
+    this.captureService.setCameraROIPercent(this.camera_id, value, -1).subscribe(
+        data => { },
+        err => console.error(err),
+        () => {}
+      );
+  }
+
   setROI(values : number[]) {
-    this.captureService.setCameraROI(this.camera_id, values).subscribe(
+    this.captureService.setCameraROI(this.camera_id, values, -1).subscribe(
         data => { },
         err => console.error(err),
         () => {}
@@ -165,12 +173,14 @@ export class ZoomViewComponent {
   }
 
   resetROI() {
-    this.captureService.resetCameraROI(this.camera_id).subscribe(
+    this.captureService.resetCameraROI(this.camera_id, -1).subscribe(
         data => { },
         err => console.error(err),
         () => {}
       );
   }
+
+  public isVisible(): boolean {return this.visible;}
 
   public show(camera): void {
 
@@ -187,6 +197,7 @@ export class ZoomViewComponent {
     this.startImageLoader();
     this.visible = true;
   }
+
   public hide(): void {
 
     if (this.imageLoader) {

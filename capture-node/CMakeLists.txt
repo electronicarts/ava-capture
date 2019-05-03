@@ -34,7 +34,6 @@ include_directories(${Boost_INCLUDE_DIRS})
 
 # Portaudio
 include (FindPortaudio.cmake)
-
 if (PORTAUDIO_FOUND)
     include_directories(${PORTAUDIO_INCLUDE_DIRS})
     add_definitions(-DWITH_PORTAUDIO)
@@ -53,12 +52,24 @@ ExternalProject_Add(websocketpp_external
     CONFIGURE_COMMAND ""
 )
 include_directories(${WEBSOCKETPP_INCLUDE_DIR})
-message(${WEBSOCKETPP_INCLUDE_DIR})
+
+# lz4
+set(LZ4_ROOT ${CMAKE_BINARY_DIR}/thirdparty/lz4)
+set(LZ4_INCLUDE_DIR ${LZ4_ROOT}/src/lz4_external/lib)
+ExternalProject_Add(lz4_external
+    PREFIX ${LZ4_ROOT}
+    GIT_REPOSITORY "https://github.com/lz4/lz4.git"
+    BUILD_COMMAND cd ${CMAKE_CURRENT_BINARY_DIR}/thirdparty/lz4/src/lz4_external && make lib
+    INSTALL_COMMAND ""
+    CONFIGURE_COMMAND ""
+)
+include_directories(${LZ4_INCLUDE_DIR})
+set(LZ4_LIBRARIES ${LZ4_INCLUDE_DIR}/liblz4.so)
 
 # set(CMAKE_BUILD_TYPE Debug)
 
 add_executable(avaCapture ${SOURCES})
-add_dependencies(avaCapture websocketpp_external)
+add_dependencies(avaCapture websocketpp_external lz4_external)
 
-target_link_libraries(avaCapture ${PYTHON_LIBRARY} ${OpenCV_LIBS} ${Boost_LIBRARIES} ${PORTAUDIO_LIBRARIES} avcodec avformat avutil tbb m3api ${OPENSSL_LIBRARIES})
+target_link_libraries(avaCapture ${LZ4_LIBRARIES} ${PYTHON_LIBRARY} ${OpenCV_LIBS} ${Boost_LIBRARIES} ${PORTAUDIO_LIBRARIES} avcodec avformat avutil tbb m3api ${OPENSSL_LIBRARIES})
 

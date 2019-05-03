@@ -10,6 +10,8 @@ import os
 import subprocess
 import requests
 import threading
+import cv2
+import json
 
 from .credentials import DEFAULT_USERNAME, DEFAULT_PASSWORD, DEFAULT_SERVER
 from .common import PopenWithTimeout
@@ -42,6 +44,10 @@ class BaseJob(object):
     def server_post(self, url, **kwargs):
         # Make HTTP POST request on the server
         return self.s.post(self.server_url + url, verify=False, **kwargs)
+
+    def server_patch(self, url, **kwargs):
+        # Make HTTP PATCH request on the server
+        return self.s.patch(self.server_url + url, verify=False, **kwargs)
 
     def server_get_json(self, url):
 
@@ -105,11 +111,14 @@ class BaseJob(object):
         
         return (retcode, output)
 
-    def launch_job(self, job_class, node_name=None, params='', req_gpu=True, ext_take_id=None, ext_scan_assets_id=None, ext_tracking_assets_id=None):
+    def launch_job(self, job_class, node_name=None, params='', req_gpu=False, 
+        ext_take_id=None, ext_scan_assets_id=None, ext_tracking_assets_id=None, 
+        as_child=True, dependency_list=[], status='ready', tags=None):
+        delayed_status = dependency_list or tags
         d = {
             "job_class": job_class,
-            "parent_id": self.job_id,
-            "status": "ready",
+            "parent_id": self.job_id if as_child else None,
+            "status": 'created' if delayed_status else status,
             "params" : params,
             "req_gpu": req_gpu,
             "ext_take_id": ext_take_id,
@@ -120,6 +129,37 @@ class BaseJob(object):
         r = self.server_post('/jobs/farm_jobs/', json=d)
         if r.status_code != 201:
             raise Exception('launch_job failed : ' + r.text)
+
+        j = json.loads(r.content)
+        job_id = int(j['id'])
+
+        # If there are dependencies, need to create job in two passes because of the ManyToMany relationship
+        if dependency_list:
+            d = {
+                "dependencies_id": dependency_list
+                }
+            r = self.server_patch('/jobs/farm_jobs/%d/' % job_id, json=d)
+            if r.status_code != 200:
+                raise Exception('job set dependencies failed : ' + r.text)
+
+        # If there are tags, need to create job in two passes because of the ManyToMany relationship
+        if tags:
+            d = {
+                "tags": tags
+                }
+            r = self.server_patch('/jobs/farm_jobs/%d/' % job_id, json=d)
+            if r.status_code != 200:
+                raise Exception('job set tags failed : ' + r.text)
+
+        if delayed_status:
+            d = {
+                "status": status
+                }
+            r = self.server_patch('/jobs/farm_jobs/%d/' % job_id, json=d)
+            if r.status_code != 200:
+                raise Exception('job set status failed : ' + r.text)
+
+        return job_id
 
     def yieldToChildren(self, children_list):
 
@@ -140,3 +180,45 @@ class BaseJob(object):
 
         raise YieldToChildrenException(children_list)
 
+    def set_job_image(self, img, resize=True):
+
+        if isinstance(img, basestring) and not resize:
+
+            fileext = os.path.splitext(img)[1]
+
+            # Upload to server
+            with open(img, 'rb') as f:
+                files={'file':('job_%d%s' % (self.job_id, fileext), f)}
+                r = self.server_post('/jobs/job_image/%d' % (self.job_id), files=files)
+                if r.status_code != 200:
+                    raise Exception('Could not upload job thumbnail to server code:%d %s' % (r.status_code, r.text))
+
+        else:
+
+            if isinstance(img, basestring):
+                img = cv2.imread(img, cv2.IMREAD_UNCHANGED)
+
+            # Check image resolution
+            if resize:
+                max_width = 512
+                height, width = img.shape[:2]
+                if width>max_width:
+                    img = cv2.resize(img, (max_width, max_width*height/width), interpolation=cv2.INTER_AREA)
+
+            # Store image in a temporary thumbnail
+            tmp_jpg = tempfile.mktemp(suffix='.jpg')
+
+            try:
+        
+                cv2.imwrite(tmp_jpg, img)
+
+                # Upload to server
+                with open(tmp_jpg, 'rb') as f:
+                    files={'file':('job_%d.jpg' % self.job_id, f)}
+                    r = self.server_post('/jobs/job_image/%d' % (self.job_id), files=files)
+                    if r.status_code != 200:
+                        raise Exception('Could not upload job thumbnail to server code:%d %s' % (r.status_code, r.text))
+
+            finally:
+                if os.path.exists(tmp_jpg):
+                    os.remove(tmp_jpg)

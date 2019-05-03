@@ -1,6 +1,5 @@
 var webpack = require('webpack');
 var webpackMerge = require('webpack-merge');
-var ExtractTextPlugin = require('extract-text-webpack-plugin');
 var HtmlWebpackPlugin = require('html-webpack-plugin');
 var commonConfig = require('./webpack.common.js');
 var helpers = require('./helpers');
@@ -18,6 +17,10 @@ var metadata = {
 module.exports = webpackMerge(commonConfig, {
   devtool: 'cheap-module-eval-source-map',
 
+  optimization: {
+    minimize: false
+  },
+
   output: {
     path: helpers.root('dist-dev'),
     publicPath: '/static/d/',
@@ -26,7 +29,17 @@ module.exports = webpackMerge(commonConfig, {
   },
 
   plugins: [
-    new ExtractTextPlugin('[name].css'),
+    new webpack.DefinePlugin({
+      'process.env': {
+        'ENV': JSON.stringify(ENV),
+
+        // Get these variables from the environment variables
+        'GIT_VERSION': JSON.stringify(process.env.GIT_VERSION),
+        'AUTH_URL': JSON.stringify(process.env.AUTH_URL),
+        'AUTH_CLIENT_ID': JSON.stringify(process.env.AUTH_CLIENT_ID),
+        'AUTH_REDIRECT_URI': JSON.stringify(process.env.AUTH_REDIRECT_URI),
+      }
+    }),
     new webpack.LoaderOptionsPlugin({
       options: {
         metadata: metadata
@@ -35,6 +48,7 @@ module.exports = webpackMerge(commonConfig, {
     new HtmlWebpackPlugin({
       template: 'src/index.html',
       metadata: metadata,
+      ga: ''
     })
   ],
 

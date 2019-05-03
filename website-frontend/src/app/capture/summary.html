@@ -1,38 +1,56 @@
-<div *ngIf="visible">
 
-  <div class="card" style="margin-top: 3px;margin-bottom: 3px;">
-    <div class="card-header">
-        <h4>
-            Recording Summary
-            <div class="pull-right">
-                <button type="button" class="close" aria-label="Close" (click)="hide()"><span aria-hidden="true">&times;</span></button>
-            </div>
-        </h4>
-    </div>
-    <div class="card-block">
+<div class="alert alert-danger" *ngIf="content.nodes.length==0"><strong>Error!</strong> Nothing was recorded</div>
 
-            <p>DB Project: <b>{{content.project_name}}</b> Session: <b>{{content.session_name}}</b> Shot: <b>{{content.shot_name}}</b> Take: <b>{{content.take_index}}</b></p>
-            
-            <div class="alert alert-danger" *ngIf="content.nodes.length==0"><strong>Error!</strong> Nothing was recorded</div>
+<div style="font-size: 12px; display: flex; flex-wrap: wrap;">
+  <div *ngFor="let node of content.nodes | SortBy:'machine_name'">
+      <div style="display: inline-block; margin:2px; padding:3px; background-color:#676c6f; color:#000;" *ngFor="let cam of node.summary.cameras | SortBy:'unique_id'">
+        <div style="font-size: 14px; font-weight:bold;">{{node.machine_name}}</div>
+        <div>{{cam?.camera.model}} {{cam?.unique_id}}</div>
+        <div *ngIf="cam?.camera.error_trigger_timeout"><span class="badge badge-danger"><strong>Error!</strong> Trigger timeout</span></div>
 
-            <div style="font-size: 12px; display: flex; flex-wrap: wrap;">
-              <div *ngFor="let node of content.nodes">
-                  <div style="display: inline-block; margin:2px; padding:3px; background-color:#e6f7ff;" *ngFor="let cam of node.summary.cameras">
-                    <div style="font-size: 14px; font-weight:bold;">{{node.machine_name}}</div>
-                    <div>{{cam?.camera.model}} {{cam?.unique_id}}</div>
-                    <div *ngIf="cam?.camera.error_trigger_timeout"><span class="badge badge-danger"><strong>Error!</strong> Trigger timeout</span></div>
-                    <div *ngIf="cam?.jpeg_thumbnail">
-                      <rotate_img [angle]="cam.rotation" [width]="220" [src]="'data:image/jpg;base64,'+cam.jpeg_thumbnail"></rotate_img>
-                    </div>
-                    <div *ngIf="cam?.meta.duration>0">Duration: <b>{{cam?.meta.duration | number:'1.1-2'}} s</b> (<b>{{cam?.meta.frame_count}}</b> frames)<br>Avg. FPS: <b>{{cam?.meta.frame_count / cam?.meta.duration | number:'1.1-1'}}</b></div>
-                    <div *ngIf="cam?.recorder.bandwidth>0">Bandwidth: <b>{{cam?.recorder.bandwidth | number:'1.1-1'}} MB/s</b> ({{cam?.recorder.compression_ratio | number:'1.1-1'}}:1)</div>
-                    <div>{{cam?.camera.width}}x{{cam?.camera.height}} {{cam?.meta.bitdepth}}bit <b>{{cam?.recorder.total_size | dataSize}}</b></div>
-                    <div *ngIf="cam?.meta.missing_frames>0">Dropped frames: <span class="badge badge-default" [class.badge-danger]="cam?.meta.missing_frames>0">{{cam?.meta.missing_frames}}</span></div>
-                  </div>
-              </div>
-            </div>
+        <div *ngIf="cam?.thumbnail_index">
+          Thumbnail Index: {{cam?.thumbnail_index}}
+        </div>
+        <div *ngIf="cam?.jpeg_thumbnail">
+          <rotate_img [angle]="cam.rotation" [width]="220" [src]="'data:image/jpg;base64,'+cam.jpeg_thumbnail"></rotate_img>
+        </div>
+        <div *ngIf="cam?.jpeg_thumbnail_overexposed">
+          <rotate_img [angle]="cam.rotation" [width]="220" [src]="'data:image/jpg;base64,'+cam.jpeg_thumbnail_overexposed"></rotate_img>
+        </div>
+        <div *ngIf="cam?.audio">
+          <i style="font-size:5em;" class="fa fa-file-audio-o"></i>
+        </div>
+  
+        <div *ngIf="cam?.meta && cam?.recorder">
+          <div *ngIf="cam?.meta.duration>0">Duration: <b>{{cam?.meta.duration | number:'1.1-2'}} s</b> (<b>{{cam?.meta.frame_count}}</b> frames)<br>Avg. FPS: <b>{{cam?.meta.frame_count / cam?.meta.duration | number:'1.1-1'}}</b></div>
+          <div *ngIf="cam?.recorder.bandwidth>0">Bandwidth: <b>{{cam?.recorder.bandwidth | number:'1.1-1'}} MB/s</b> ({{cam?.recorder.compression_ratio | number:'1.1-1'}}:1)</div>
+          <div>{{cam?.camera.width}}x{{cam?.camera.height}} {{cam?.meta.bitdepth}}bit {{cam?.camera_params?.exposure/1000.0 | number:'1.1-1'}}ms <b>{{cam?.recorder.total_size | dataSize}}</b></div>
+          <div *ngIf="cam?.meta.missing_frames>0">Dropped frames: <span class="badge badge-default" [class.badge-danger]="cam?.meta.missing_frames>0">{{cam?.meta.missing_frames}}</span></div>
+        </div>
 
-    </div>
+        <div *ngIf="cam?.audio">
+          <div>Audio Duration: <b>{{cam.audio.duration | number:'1.1-2'}} s</b></div>
+          <div><b>{{cam.audio.recorded_samples}}</b> samples at <b>{{cam.audio.sample_rate}}Hz</b></div>
+          <div>Channels: <b>{{cam.audio.channels}}</b> Bits:<b>{{cam.audio.bits_per_sample}}</b></div>
+        </div>
+
+        <a href="/archive/download_original/?take={{content.take_id}}&amp;camera={{cam?.unique_id}}">Download Original</a>
+  
+      </div>
   </div>
 </div>
 
+<div style="font-size: 12px;">
+  List of time deltas for each camera (ms)
+  <table>
+    <ng-template ngFor let-node [ngForOf]="content.nodes">
+      <tr *ngFor="let cam of node.summary.cameras">
+          <td>{{node.machine_name}}</td>
+          <td>{{cam?.unique_id}}</td>
+          <td>{{cam?.camera.framerate}} fps</td>
+        <td *ngFor="let delta of cam?.meta?.first_timedeltas" [style.background-color]="getBgColor(delta, cam?.camera.framerate)">{{delta*1000 | number:'1.0-1' }}</td> 
+        <td>...</td>
+      </tr>
+    </ng-template>
+  </table>
+</div>

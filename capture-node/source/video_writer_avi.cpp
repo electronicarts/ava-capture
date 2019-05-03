@@ -1,11 +1,14 @@
 // Copyright (C) 2017 Electronic Arts Inc.  All rights reserved.
 
-#include "video_encoder.hpp"
+#include "video_writer_avi.hpp"
 #include "recorder.hpp"
 
 #include <iostream>
+#include <chrono>
 
 #include <opencv2/highgui.hpp>
+
+#include <tbb/pipeline.h>
 
 extern "C" {
 #include <libavcodec/avcodec.h>
@@ -13,8 +16,8 @@ extern "C" {
 #include <libavutil/imgutils.h>
 }
 
-bool VideoWriter::s_global_init = false;
-int VideoWriter::s_frame_row_alignment = 32;
+bool AviVideoWriter::s_global_init = false;
+int AviVideoWriter::s_frame_row_alignment = 32;
 
 int ffio_set_buf_size(AVIOContext *s, int buf_size)
 {
@@ -35,7 +38,7 @@ int ffio_set_buf_size(AVIOContext *s, int buf_size)
 	return 0;
 }
 
-VideoWriter::VideoWriter(const char * filename, int framerate, int width, int height, int bpp)
+AviVideoWriter::AviVideoWriter(const char * filename, int framerate, int width, int height, int bpp)
 	: m_framerate(framerate), m_width(width), m_height(height), m_closed(false), m_frame_counter(0),
 		m_av_stream(0), m_fmt_ctx(0), m_c(0), m_format_opts(0), m_bpp(bpp)
 {
@@ -138,17 +141,86 @@ VideoWriter::VideoWriter(const char * filename, int framerate, int width, int he
 
 	avformat_write_header(m_fmt_ctx, &m_format_opts);
 
-	encode_thread = boost::thread([this]() {encodingThread(); });
-	write_thread = boost::thread([this]() {writingThread(); });
+	// Run TBB Pipeline in a thread
+	pipeline_thread = boost::thread([this]() {
+
+		// Prepare TBB Pipeline to encode and write frames
+		tbb::filter_t<void,AVFrame*> f1(tbb::filter::serial_in_order, [this](tbb::flow_control& fc) -> AVFrame* {
+				// Consume m_frame_queue
+				AVFrame* frame = 0;
+				m_frame_queue.pop(frame);
+				if (!frame)
+				{
+					fc.stop();
+					return nullptr;
+				}
+
+				return frame;
+			});
+		tbb::filter_t<AVFrame*,AVPacket*> f2(tbb::filter::serial_in_order, [this](AVFrame * frame){
+
+				// Encode one frame
+				{
+					int ret = 0;
+					int got_output = 0;
+
+					// Encode image data
+					AVPacket* packet = new AVPacket;
+					av_init_packet(packet);
+					packet->data = NULL;    // packet data will be allocated by the encoder
+					packet->size = 0;
+
+					// Encode Frame
+					ret = avcodec_encode_video2(m_c, packet, frame, &got_output);
+
+					//std::cout << "frame compressed to " << packet->size << "\n"; // DEBUG
+
+					// Deallocate frame memory (TODO: return to available queue)
+					deallocate_frame(&frame);
+
+					{
+						// Write encoded frame to queue
+						if (got_output)
+						{
+							if (!m_paquet_queue.try_push(packet))
+							{
+								std::cerr << "Writer> Dropped Frame!" << std::endl;
+								delete packet;
+								return (AVPacket*)nullptr;
+							}
+						}
+						else
+						{
+							return (AVPacket*)nullptr;
+						}
+					}
+
+					return packet;			
+				}
+			});
+		tbb::filter_t<AVPacket*,void> f3(tbb::filter::serial_in_order, [this](AVPacket * packet){
+				// Write one packet to disk
+				{
+					packet->stream_index = m_av_stream->index;
+					av_interleaved_write_frame(m_fmt_ctx, packet);
+
+					av_packet_unref(packet);
+					delete packet;
+				}
+			});
+
+     	tbb::filter_t<void,void> f = f1 & f2 & f3;
+     	tbb::parallel_pipeline(32,f);		
+	});
 }
 
-VideoWriter::~VideoWriter()
+AviVideoWriter::~AviVideoWriter()
 {
 	if (!m_closed)
 		close();
 }
 
-int VideoWriter::buffers_used(int type) const
+int AviVideoWriter::buffers_used(int type) const
 {
 	// Return a pair of values, representing Encoding and Writing buffers
 
@@ -162,78 +234,7 @@ int VideoWriter::buffers_used(int type) const
 	return 0;
 }
 
-void VideoWriter::encodingThread()
-{
-	// This thread consumes frames in m_frame_queue
-	// TODO This could be replaced with tbb::pipeline if we need multiple threads per stream, and we are sure
-	// the codec can be parallelized.
-
-	while (1)
-	{
-		AVFrame* frame = 0;
-		m_frame_queue.pop(frame);
-		if (!frame)
-			break;
-
-		// Encode one frame
-		{
-			int ret = 0;
-			int got_output = 0;
-
-			// Encode image data
-			AVPacket* packet = new AVPacket;
-			av_init_packet(packet);
-			packet->data = NULL;    // packet data will be allocated by the encoder
-			packet->size = 0;
-
-			// Encode Frame
-			ret = avcodec_encode_video2(m_c, packet, frame, &got_output);
-
-			// Deallocate frame memory (TODO: return to available queue)
-			deallocate_frame(&frame);
-
-			{
-				// Write encoded frame to queue
-				if (got_output)
-				{
-					if (!m_paquet_queue.try_push(packet))
-					{
-						std::cerr << "Writer> Dropped Frame!" << std::endl;
-						delete packet;
-					}
-				}
-				else
-				{
-					delete packet;
-				}
-			}
-		}
-	}
-}
-
-void VideoWriter::writingThread()
-{
-	// This thread consumes packets from m_paquet_queue
-
-	while (1)
-	{
-		AVPacket* packet = 0;
-		m_paquet_queue.pop(packet);
-		if (!packet)
-			break;		
-
-		// Write one packet to disk
-		{
-			packet->stream_index = m_av_stream->index;
-			av_interleaved_write_frame(m_fmt_ctx, packet);
-
-			av_packet_unref(packet);
-			delete packet;
-		}
-	}
-}
-
-bool VideoWriter::addFrame(const cv::Mat& img)
+bool AviVideoWriter::addFrame(const cv::Mat& img, double ts)
 {
 	const int byteperpixel = m_bpp == 8 ? 1 : 2;
 
@@ -253,14 +254,13 @@ bool VideoWriter::addFrame(const cv::Mat& img)
 	return true;
 }
 
-void VideoWriter::close()
+void AviVideoWriter::close()
 {
 	int ret;
 
 	m_frame_queue.push(0); // Blocking push of terminator
 	m_paquet_queue.push(0); // Blocking push of terminator
-	encode_thread.join();
-	write_thread.join();
+	pipeline_thread.join();
 
 	m_closed = true;
 
@@ -302,7 +302,7 @@ void VideoWriter::close()
 	av_dict_free(&m_format_opts);
 }
 
-AVFrame* VideoWriter::allocate_frame()
+AVFrame* AviVideoWriter::allocate_frame()
 {
 	AVFrame* frame = 0;
 
@@ -326,7 +326,7 @@ AVFrame* VideoWriter::allocate_frame()
 	return frame;
 }
 
-void VideoWriter::deallocate_frame(AVFrame** frame)
+void AviVideoWriter::deallocate_frame(AVFrame** frame)
 {
 	if (*frame)
 	{

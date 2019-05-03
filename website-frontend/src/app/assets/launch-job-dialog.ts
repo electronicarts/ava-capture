@@ -1,78 +1,119 @@
 //
-// Copyright (c) 2017 Electronic Arts Inc. All Rights Reserved 
+// Copyright (c) 2018 Electronic Arts Inc. All Rights Reserved 
 //
 
 import { Component, Input, Output, EventEmitter, ElementRef } from '@angular/core';
 import { AssetService } from './assets.service';
+import { ColorChartEditor } from './../components/color_chart';
+import { NotificationService } from '../notifications.service';
 
 var $ = require("jquery");
 
 @Component({
   selector: 'launch-job-dialog',
-  template: require('./launch-job-dialog.html')
+  template: require('./launch-job-dialog.html'),
+  providers: [ColorChartEditor]
 })
 export class LaunchJobDialog {
 
   jobclass : string;
-  use_gpu : boolean = true;
+  take_id = 0;
   asset_id = 0;
-  params_to_show = []
-
-  params = {resolution:4096, meshfile:"", color_matrix:""};
+  tracking_asset_id = 0;
+  working = false;
+  tags = []
+  options = []
 
   el: ElementRef;
 
-  constructor(el: ElementRef, private assetService: AssetService) {
+  constructor(el: ElementRef, private assetService: AssetService, private notificationService: NotificationService) {
       this.el = el;
   }
 
-  show(asset_id : number, jobclass : string) {
-    this.jobclass = jobclass;
-    this.asset_id = asset_id;
-    this.params.resolution = 4096;
-    this.params.meshfile = '';
-    this.params.color_matrix = '';
-    this.use_gpu = true;
+  hideDialog() {
+    this.working = false;
+    this.jobclass = '';
+    this.take_id = 0;
+    this.asset_id = 0;
+    this.tracking_asset_id = 0;
+    this.tags = []; 
+    this.options = []; 
+    ($(this.el.nativeElement).find('div:first')).removeClass('modal-dialog-container-show');
+  }
 
-    // Choose parameters to show depending on the job_class
-    this.params_to_show = [];
-    if (this.jobclass == 'jobs.lightstage.Geometry')
-      this.params_to_show = ['resolution', 'meshfile'];
-    if (this.jobclass == 'jobs.lightstage.Textures')
-      this.params_to_show = ['resolution', 'color_matrix'];
+  show(jobclass : string, options : any[], take_id : number = null, asset_id : number = null, tracking_asset_id : number = null, tags : any[]) {
+    this.jobclass = jobclass;
+    this.take_id = take_id;
+    this.asset_id = asset_id;
+    this.tracking_asset_id = tracking_asset_id;
+    this.tags = tags;
+    this.options = options;
 
     // Show dialog
     ($(this.el.nativeElement).find('div:first')).addClass('modal-dialog-container-show');
   }
 
   onCancelLaunchJob() {
-    ($(this.el.nativeElement).find('div:first')).removeClass('modal-dialog-container-show');
+    this.hideDialog();
+  }
+
+  trackByName(index: number, something : any) {
+    return something.name;
+  }
+
+  dismissDialog() {
+    setTimeout(() => {
+      this.hideDialog();
+    }, 500);
   }
 
   onLaunchJob(event) {
 
-    event.target.disabled = true;
-    event.target.classList.add('btn-destructive');
+    this.working = true;
 
-    var params_str = JSON.stringify(this.params);
+    // Build parameter string
+    var params_dict = {};
+    this.options.forEach((element) => {
+      params_dict[element.name] = element.value;
+    });
+    var params_str = JSON.stringify(params_dict);
 
-    this.assetService.createAssetJob(this.asset_id, this.jobclass, params_str, this.use_gpu).subscribe(
-        data => {},
-        err => console.error(err),
-        () => {
-
-          setTimeout(() => {
-
-            event.target.disabled = false;
-            event.target.classList.remove('btn-destructive');
-
-            ($(this.el.nativeElement).find('div:first')).removeClass('modal-dialog-container-show');
-
-          }, 500);
-
+    // Launch job
+    if (this.tracking_asset_id)
+    {
+      this.assetService.createTrackingAssetJob(this.tracking_asset_id, this.jobclass, params_str, false, null, this.tags).subscribe(
+        data => {
+          this.dismissDialog();
+        },
+        err => {
+          this.notificationService.notifyError(`ERROR: Could not create ${this.jobclass} (${err.status} ${err.statusText})`);
+          this.dismissDialog();
         }
       );
-    
+    }
+    if (this.asset_id)
+    {
+      this.assetService.createAssetJob(this.asset_id, this.jobclass, params_str, false, null, this.tags).subscribe(
+        data => {
+          this.dismissDialog();
+        },
+        err => {
+          this.notificationService.notifyError(`ERROR: Could not create ${this.jobclass} (${err.status} ${err.statusText})`);
+          this.dismissDialog();
+        }
+      );
+    }
+    if (this.take_id)
+    {
+      this.assetService.createTakeJob(this.take_id, this.jobclass, params_str, false, null, this.tags).subscribe(
+        data => {
+          this.dismissDialog();
+        },
+        err => {
+          this.notificationService.notifyError(`ERROR: Could not create ${this.jobclass} (${err.status} ${err.statusText})`);
+          this.dismissDialog();
+        }
+      );
+    }
   }
-
 }
