@@ -1,5 +1,5 @@
 ansi2html
-boto3>=1.9.140
+boto3>=1.9.141
 Django==1.11.20
 django-gravatar2==1.4.0
 django-model-utils==2.6
