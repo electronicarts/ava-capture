@@ -1,6 +1,6 @@
 ansi2html
 boto3>=1.9.141
-Django==1.11.21
+Django==1.11.22
 django-gravatar2==1.4.0
 django-model-utils==2.6
 django-prometheus==1.0.13
