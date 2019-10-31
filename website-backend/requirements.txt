@@ -1,14 +1,14 @@
 ansi2html
 boto3>=1.9.141
-Django==1.11.22
+Django==1.11.25
 django-gravatar2==1.4.0
 django-model-utils==2.6
 django-prometheus==1.0.13
 django-solo==1.1.2
-django-filter==1.0.4
+django-filter==1.1.0
 django-taggit==0.22.2
 django-taggit-serializer==0.1.5
-djangorestframework==3.4.6
+djangorestframework==3.9.1
 djangorestframework-jwt==1.11.0
 python-ldap==2.4.41
 prometheus-client==0.2.0

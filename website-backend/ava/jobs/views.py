@@ -26,6 +26,7 @@ from django.contrib.auth.models import User
 from common.uuid_utils import uuid_node_base36
 
 from rest_framework import viewsets, filters, mixins
+from django_filters.rest_framework import DjangoFilterBackend
 from serializers import FarmNodeSerializer, FarmJobSerializer, FarmJobDetailedSerializer, FarmNodeGroupSerializer, FarmNodeSerializerDetails
 
 from django.core.mail import send_mail
@@ -794,7 +795,7 @@ class FarmGroupsViewSet(viewsets.ReadOnlyModelViewSet):
 
 class FarmNodeViewSet(viewsets.ModelViewSet):
 
-    filter_backends = (filters.DjangoFilterBackend, )
+    filter_backends = (DjangoFilterBackend, )
     filter_fields = ('status', 'active', )
 
     queryset = FarmNode.objects.all().order_by('status', 'machine_name')
@@ -802,7 +803,7 @@ class FarmNodeViewSet(viewsets.ModelViewSet):
 
 class RecentFarmJobsViewSet(viewsets.ModelViewSet):
 
-    filter_backends = (filters.DjangoFilterBackend, filters.SearchFilter,)
+    filter_backends = (DjangoFilterBackend, filters.SearchFilter,)
     filter_fields = ('status', )
     search_fields = ('job_class', 'node__machine_name', 'created_by')
         
@@ -811,7 +812,7 @@ class RecentFarmJobsViewSet(viewsets.ModelViewSet):
 
 class RecentFinishedFarmJobsViewSet(viewsets.ModelViewSet):
 
-    filter_backends = (filters.DjangoFilterBackend, filters.SearchFilter,)
+    filter_backends = (DjangoFilterBackend, filters.SearchFilter,)
     filter_fields = ('status', )
     search_fields = ('job_class', 'node__machine_name', 'created_by')
         
@@ -820,7 +821,7 @@ class RecentFinishedFarmJobsViewSet(viewsets.ModelViewSet):
 
 class FarmJobsViewSet(viewsets.ModelViewSet):
 
-    filter_backends = (filters.DjangoFilterBackend, filters.SearchFilter,)
+    filter_backends = (DjangoFilterBackend, filters.SearchFilter,)
     filter_fields = ('status', )
     search_fields = ('job_class', 'node__machine_name', 'created_by')
         

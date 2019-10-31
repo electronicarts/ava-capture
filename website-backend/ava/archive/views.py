@@ -25,6 +25,7 @@ from serializers import *
 
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
 
 from jobs.models import FarmNode, FarmJob
@@ -52,7 +53,7 @@ class ProjectAssetsViewSet(viewsets.ModelViewSet):
 
 class SessionViewSet(viewsets.ModelViewSet):
 
-    filter_backends = (filters.DjangoFilterBackend, filters.OrderingFilter, )
+    filter_backends = (DjangoFilterBackend, filters.OrderingFilter, )
     filter_fields = ('project', )
     ordering_fields = ('start_time', )
 
@@ -61,7 +62,7 @@ class SessionViewSet(viewsets.ModelViewSet):
 
 class SessionDetailsViewSet(viewsets.ModelViewSet):
 
-    filter_backends = (filters.DjangoFilterBackend, filters.OrderingFilter, )
+    filter_backends = (DjangoFilterBackend, filters.OrderingFilter, )
     filter_fields = ('project', )
     ordering_fields = ('start_time', )
 
