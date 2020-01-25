@@ -52,6 +52,61 @@ def resize_image(img, width=None, height=None, max_side=None, interpolation=cv2.
         # Set height and preserve ratio
         return cv2.resize(img, (height*original_width//original_height, height), interpolation=interpolation)
 
+def rotate_img(img, angle):
+    if angle == 180:
+        return cv2.flip(cv2.flip(img,0),1)
+    elif angle == 90:
+        return cv2.flip(cv2.transpose(img),1)
+    elif angle == -90 or angle == 270:
+        return cv2.transpose(cv2.flip(img,1))
+    return img
+
+def raw_processing_to_float32_linear(raw_img, bayer, blacklevel, bitcount, kB, kG, kR, resize_max_side=None):
+
+    img = raw_img
+
+    # Debayer
+    if bayer == 'BGGR':
+        img = cv2.cvtColor(img, cv2.COLOR_BAYER_RG2RGB)
+    elif bayer == 'RGGB':
+        img = cv2.cvtColor(img, cv2.COLOR_BAYER_BG2RGB)
+    elif bayer == 'GBRG':
+        img = cv2.cvtColor(img, cv2.COLOR_BAYER_GR2RGB)
+    elif bayer == 'GRBG':
+        img = cv2.cvtColor(img, cv2.COLOR_BAYER_GB2RGB)
+
+    # Resize Image
+    if resize_max_side:
+        img = resize_image(img, max_side=resize_max_side)
+
+    # Black point correction
+    image_bpp = (8 if img.dtype==np.uint8 else 16)
+    max_value = (2 ** image_bpp - 1)
+    img = np.clip(img, blacklevel, max_value) - blacklevel
+
+    # # 10,12,14 bit images need to be moved from LSB to MSB
+    if bitcount > 8:
+        if np.uint16 != img.dtype:
+            raise Exception('Images with bitcount higher than 8 should be stored as 16bit')
+        img = img << (16 - bitcount)
+
+    # Convert image to Float32
+    if img.dtype == np.uint8 or img.dtype == np.uint16:
+        img = img.astype(np.float32) / float(max_value)
+    else:
+        raise Exception('Unknown input image format')
+
+    # Color Correction
+    if len(img.shape)>2:
+        # COLOR
+
+        mat = np.diag(np.array([kB,kG,kR])).astype(np.float32)
+        #mat = mat / np.max(mat)
+        img = np.matmul(img, mat)
+
+    # Image is in Linear RGB, always 32 bit float
+    return img # img_float32_linearRGB
+
 def raw_processing_to_16bit_linear(raw_img, bayer, blacklevel, bitcount, kB, kG, kR, resize_max_side=None):
 
     img = raw_img
@@ -88,9 +143,9 @@ def raw_processing_to_16bit_linear(raw_img, bayer, blacklevel, bitcount, kB, kG,
         # the image always gets upgraded to 16 bit for color correction
         if np.uint8 == img.dtype:
             # input is 8 bit color
-            mat = np.diag(np.array([255*kB,255*kG,255*kR])).astype(np.uint16)
-            img = np.matmul(img.astype(np.uint16), mat)
-            img = np.clip(img,0,65535)
+            mat = np.diag(np.array([255*kB,255*kG,255*kR])).astype(np.uint32)
+            img = np.matmul(img.astype(np.uint32), mat)
+            img = np.clip(img,0,65535).astype(np.uint16)
         elif np.uint16 == img.dtype:
             # input is 16 bit color
             mat = np.diag(np.array([65535*kB,65535*kG,65535*kR])).astype(np.uint32)
@@ -160,7 +215,8 @@ class AvaSequenceFileReader():
             f.seek(index_offset)
             self._frame_indices = np.frombuffer(f.read(index_size), dtype=np.uint64)
 
-            self._img_data_size = (self.bitcount//8)*self.width*self.height
+            byteperpixel = 2 if self.bitcount > 8 else 1
+            self._img_data_size = byteperpixel*self.width*self.height
 
             if self._frame_indices.shape[0] != self._frame_count:
                 raise Exception('Invalid Ava Sequence file (invalid index size)')
@@ -169,7 +225,7 @@ class AvaSequenceFileReader():
         return self._frame_count
 
     def _get_frame_offset_skip(self, frame_index, is_backward=True):
-        while not self._frame_indices[frame_index]:
+        while frame_index < self._frame_count and not self._frame_indices[frame_index]:
             frame_index = frame_index + (-1 if is_backward else 1)
         if frame_index < 0 or frame_index >= self._frame_count:
             return None
@@ -211,12 +267,12 @@ class AvaSequenceFileReader():
         raw_img = np.fromstring(buffer, np.uint8 if self.bitcount==8 else np.uint16).reshape((self.height,self.width))
         return raw_processing_to_16bit_linear(raw_img, self.bayer, self.blacklevel, self.bitcount, self.kB, self.kG, self.kR, resize_max_side=resize_max_side)
 
-    def frame_as_cv2_sRGB_8bit(self, frame_index, resize_max_side=None):
+    def frame_as_cv2_sRGB_8bit(self, frame_index, resize_max_side=None, rotation_angle=0):
         img_16bit_linear = self._read_one_frame_16bit_linear(frame_index, resize_max_side=resize_max_side)
-        return (np.clip(Linear_to_sRGB(img_16bit_linear).astype(np.uint16),0,65535) >> 8).astype(np.uint8)
+        return rotate_img((np.clip(Linear_to_sRGB(img_16bit_linear).astype(np.uint16),0,65535) >> 8).astype(np.uint8), rotation_angle)
 
-    def frame_as_cv2_LinearRGB_16bit(self, frame_index, resize_max_side=None):
-        return self._read_one_frame_16bit_linear(frame_index, resize_max_side=resize_max_side)
+    def frame_as_cv2_LinearRGB_16bit(self, frame_index, resize_max_side=None, rotation_angle=0):
+        return rotate_img(self._read_one_frame_16bit_linear(frame_index, resize_max_side=resize_max_side), rotation_angle)
 
 class AvaRawImageFileReader():
     def __init__(self, filename):
@@ -258,9 +314,14 @@ class AvaRawImageFileReader():
             # RAW Processing
             self.img_uint16_linearRGB = raw_processing_to_16bit_linear(img,
                 bayer,blacklevel,bitcount,kB,kG,kR)
+            self.img_float32_linearRGB = raw_processing_to_float32_linear(img,
+                bayer,blacklevel,bitcount,kB,kG,kR)
 
-    def as_cv2_sRGB_8bit(self):
-        return (np.clip(Linear_to_sRGB(self.img_uint16_linearRGB).astype(np.uint16),0,65535) >> 8).astype(np.uint8)
+    def as_cv2_sRGB_8bit(self, rotation_angle=0):
+        return rotate_img((np.clip(Linear_to_sRGB(self.img_uint16_linearRGB).astype(np.uint16),0,65535) >> 8).astype(np.uint8), rotation_angle)
 
-    def as_cv2_LinearRGB_16bit(self):
-        return self.img_uint16_linearRGB
+    def as_cv2_LinearRGB_16bit(self, rotation_angle=0):
+        return rotate_img(self.img_uint16_linearRGB, rotation_angle)
+
+    def as_cv2_LinearRGB_float32(self, rotation_angle=0):
+        return rotate_img(self.img_float32_linearRGB, rotation_angle)
