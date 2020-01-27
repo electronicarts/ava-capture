@@ -213,21 +213,6 @@ bool XimeaCamera::set_bitdepth(int bitdepth)
 		set_param_int(XI_PRM_IMAGE_DATA_BIT_DEPTH, bitdepth);
 	}
 
-	if (isXiC())
-	{
-		if (bitdepth > 8)
-		{
-			// For XiC cameras, the analog gain is lower on 10/12 bits, resulting in darker images by a factor of 4.
-			// To compensate, we apply a gain.
-
-			set_param_int(XI_PRM_GAIN, 12 );  
-		}
-		else
-		{
-			set_param_int(XI_PRM_GAIN, 0 );  
-		}
-	}
-
 	m_last_bitdepth = m_bitcount = get_param_int(XI_PRM_IMAGE_DATA_BIT_DEPTH);
 
 	printf("%s Sensor:%d bits Output:%d bits Image:%d bits (packing:%d)\n", m_device_name.c_str(),
