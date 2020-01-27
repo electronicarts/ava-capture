@@ -214,13 +214,7 @@ int SimpleMovieRecorder::buffers_used(int type) const
 
 void SimpleMovieRecorder::append_impl(cv::Mat img, double ts, int blacklevel)
 {
-	cv::Mat tempImage = img;
-
-	// TODO Is this still true ? why not do this in post... ?
-	if (m_bitcount>8)
-		tempImage = img * (1 << (16 - m_bitcount)); // 10,12,14 bit images need to be scaled up to 16 bit value range
-
-	if (!m_writers[m_frame_count % m_writers.size()]->addFrame(tempImage, ts))
+	if (!m_writers[m_frame_count % m_writers.size()]->addFrame(img, ts))
 		m_dropped_frames++;
 
 	Recorder::append_impl(img, ts, blacklevel);
