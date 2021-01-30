@@ -32,7 +32,7 @@
 
     "font-awesome": "4.7.0",
 
-    "three": "0.96.0"
+    "three": "0.125.0"
 
   },
   "devDependencies": {
