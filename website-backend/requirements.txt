@@ -8,7 +8,7 @@ django-solo==1.1.2
 django-filter==1.1.0
 django-taggit==0.22.2
 django-taggit-serializer==0.1.5
-djangorestframework==3.9.1
+djangorestframework==3.11.2
 djangorestframework-jwt==1.11.0
 python-ldap==2.4.41
 prometheus-client==0.2.0
