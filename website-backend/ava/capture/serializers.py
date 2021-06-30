@@ -2,7 +2,7 @@
 # Copyright (c) 2018 Electronic Arts Inc. All Rights Reserved 
 #
 
-from models import CaptureNode, Camera, CaptureLocation
+from capture.models import CaptureNode, Camera, CaptureLocation
 from rest_framework import serializers
 
 import json

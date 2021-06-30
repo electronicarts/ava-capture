@@ -3,7 +3,7 @@
 #
 
 import datetime
-import urllib2
+import requests
 import json
 import time
 import os
@@ -17,8 +17,8 @@ from base64 import b64encode, b64decode
 
 from rest_framework import viewsets
 
-from models import CaptureNode, Camera, CaptureLocation
-from serializers import CaptureNodeSerializer, CameraSerializer, CaptureLocationSerializer
+from capture.models import CaptureNode, Camera, CaptureLocation
+from capture.serializers import CaptureNodeSerializer, CameraSerializer, CaptureLocationSerializer
 
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
@@ -42,8 +42,6 @@ from archive.models import Camera as ArchiveCamera
 from jobs.models import FarmJob, FarmNode
 
 from multiprocessing.pool import ThreadPool
-
-from raven.contrib.django.raven_compat.models import client
 
 g_pool = ThreadPool(32)
 g_logger = logging.getLogger('dev')
@@ -90,7 +88,7 @@ def register_new_take(loc, summary, is_burst, is_scan):
     # Session and Shot should already be created and referenced in cur_session and cur_shot
     if loc.cur_project:
         if not loc.cur_session or not loc.cur_shot:
-            print 'ERROR> Session and Shot should be created'
+            print('ERROR> Session and Shot should be created')
             return
 
         # Create Take
@@ -119,9 +117,8 @@ def register_new_take(loc, summary, is_burst, is_scan):
                                 with open(filepath, 'wb') as f:
                                     f.write(base64_thumbnail)
                             except Exception as e:
-                                client.captureException()
-                                print e
-
+                                print(e)
+                                
                             cam['thumb_filename'] = filename
 
                         all_files = []
@@ -235,13 +232,12 @@ def post_close_node(request):
         if 'node_id' in j:
             node = CaptureNode.objects.get(pk=j['node_id'])
             if node:
-                print node
+                print(node)
                 url = 'http://%s:8080/close_node' % (node.ip_address)
 
                 try:
-                    urllib2.urlopen(url, data="", timeout=DEFAULT_NODE_HTTP_TIMEOUT).read()
+                    requests.post(url, timeout=DEFAULT_NODE_HTTP_TIMEOUT)
                 except Exception as e:
-                    client.captureException()
                     g_logger.error('%s: %s' % (url, e))                                   
                 
     return HttpResponse()
@@ -288,9 +284,8 @@ def post_toggle_capturing(request):
                 url = 'http://%s:8080/toggle_capturing/%s/' % (cam.node.ip_address, cam.unique_id)
 
                 try:
-                    urllib2.urlopen(url, data="", timeout=DEFAULT_NODE_HTTP_TIMEOUT).read()
+                    requests.post(url, timeout=DEFAULT_NODE_HTTP_TIMEOUT)
                 except Exception as e:
-                    client.captureException()
                     g_logger.error('%s: %s' % (url, e))                    
 
                 return HttpResponse()
@@ -307,27 +302,24 @@ def parallel_all_prepare_multi1(node):
             'cameras': [{'uniqueid': cam.unique_id, 'rotation': cam.rotation} for cam in node.cameras.all()]
         }
         
-        serialized_data = urllib2.urlopen('http://%s:8080/all_prepare_multi1' % node.ip_address, data=json.dumps(params), timeout=20).read()
+        requests.post('http://%s:8080/all_prepare_multi1' % node.ip_address, data=json.dumps(params), timeout=20)
     except Exception as e:
-        client.captureException()
         g_logger.error('parallel_all_prepare_multi1 %s: %s' % (node.machine_name, e))
 
     # TODO Check result from every node, otherwise, cancel the recording
 
 def parallel_all_prepare_multi2(node):
     try:
-        serialized_data = urllib2.urlopen('http://%s:8080/all_prepare_multi2' % node.ip_address, data="", timeout=DEFAULT_NODE_HTTP_TIMEOUT).read()
+        requests.post('http://%s:8080/all_prepare_multi2' % node.ip_address, data="", timeout=DEFAULT_NODE_HTTP_TIMEOUT)
     except Exception as e:
-        client.captureException()
         g_logger.error('parallel_all_prepare_multi2 %s: %s' % (node.machine_name, e))
 
     # TODO Check result from every node, otherwise, cancel the recording
 
 def parallel_all_start_multi(node):
     try:
-        serialized_data = urllib2.urlopen('http://%s:8080/all_start_multi' % node.ip_address, data="", timeout=DEFAULT_NODE_HTTP_TIMEOUT).read()
+        requests.post('http://%s:8080/all_start_multi' % node.ip_address, data="", timeout=DEFAULT_NODE_HTTP_TIMEOUT)
     except Exception as e:
-        client.captureException()
         g_logger.error('parallel_all_start_multi %s: %s' % (node.machine_name, e))
 
     # TODO Check result from every node, otherwise, cancel the recording
@@ -362,16 +354,14 @@ def post_start_recording(request):
 
 def parallel_stop_sync(node):
     try:
-        serialized_data = urllib2.urlopen('http://%s:8080/all_stop_sync' % node.ip_address, data="", timeout=DEFAULT_NODE_HTTP_TIMEOUT).read()
+        requests.post('http://%s:8080/all_stop_sync' % node.ip_address, data="", timeout=DEFAULT_NODE_HTTP_TIMEOUT)
     except Exception as e:
-        client.captureException()
         g_logger.error('parallel_stop_sync %s: %s' % (node.machine_name, e))
 
 def parallel_resume_preview(node):
     try:
-        serialized_data = urllib2.urlopen('http://%s:8080/resume_preview' % node.ip_address, data="", timeout=DEFAULT_NODE_HTTP_TIMEOUT).read()
+        requests.post('http://%s:8080/resume_preview' % node.ip_address, data="", timeout=DEFAULT_NODE_HTTP_TIMEOUT)
     except Exception as e:
-        client.captureException()
         g_logger.error('parallel_resume_preview %s: %s' % (node.machine_name, e))
 
 def parallel_all_stop_recording(p):
@@ -379,9 +369,8 @@ def parallel_all_stop_recording(p):
     node, summary = p
 
     try:
-        serialized_data = urllib2.urlopen('http://%s:8080/all_stop_recording' % node.ip_address, data="", timeout=DEFAULT_NODE_HTTP_TIMEOUT).read()
-
-        j = json.loads(serialized_data)
+        r = requests.post('http://%s:8080/all_stop_recording' % node.ip_address, data="", timeout=DEFAULT_NODE_HTTP_TIMEOUT)
+        j = r.json()
         if 'summary' in j:
             node_summary = {}
             node_summary['machine_name'] = node.machine_name
@@ -390,7 +379,6 @@ def parallel_all_stop_recording(p):
             summary.append(node_summary)              
 
     except Exception as e:
-        client.captureException()
         g_logger.error('parallel_all_stop_recording %s: %s' % (node.machine_name, e))
 
 def parallel_send_message(p):
@@ -398,10 +386,9 @@ def parallel_send_message(p):
     node, msg = p
 
     try:
-        serialized_data = urllib2.urlopen('http://%s:8080/message' % node.ip_address, data=msg, timeout=DEFAULT_NODE_HTTP_TIMEOUT).read()
+        requests.post('http://%s:8080/message' % node.ip_address, data=msg, timeout=DEFAULT_NODE_HTTP_TIMEOUT)
 
     except Exception as e:
-        client.captureException()
         g_logger.error('parallel_send_message %s: %s' % (node.machine_name, e))
 
 def add_rotation_info_to_cameras(summary):
@@ -411,7 +398,6 @@ def add_rotation_info_to_cameras(summary):
             try:
                 camera_summary['rotation'] = Camera.objects.filter(unique_id=camera_summary['camera']['unique_id'], node__machine_name=node_summary['machine_name'])[0].rotation
             except Exception as e:
-                client.captureException()
                 g_logger.error('Could not get rotation flag : %s' % (e))
     
 @api_view(['POST'])
@@ -481,9 +467,8 @@ def parallel_all_prepare_single(t):
             'cameras': [{'uniqueid': cam.unique_id, 'rotation': cam.rotation} for cam in node.cameras.all()]
         }
 
-        serialized_data = urllib2.urlopen('http://%s:8080/all_prepare_single/%d' % (node.ip_address, burst_length), data=json.dumps(params), timeout=30).read()
+        requests.post('http://%s:8080/all_prepare_single/%d' % (node.ip_address, burst_length), data=json.dumps(params), timeout=30)
     except Exception as e:
-        client.captureException()
         g_logger.error('parallel_all_prepare_single %s: %s' % (node.machine_name, e))
 
     # TODO Check that we got a result from all computers, otherwise, cancel this recording and set error
@@ -491,18 +476,16 @@ def parallel_all_prepare_single(t):
 
 def parallel_all_prepare_single2(node):
     try:
-        serialized_data = urllib2.urlopen('http://%s:8080/all_prepare_single2' % node.ip_address, data="", timeout=DEFAULT_NODE_HTTP_TIMEOUT).read()
+        requests.post('http://%s:8080/all_prepare_single2' % node.ip_address, data="", timeout=DEFAULT_NODE_HTTP_TIMEOUT)
     except Exception as e:
-        client.captureException()
         g_logger.error('parallel_all_prepare_single2 %s: %s' % (node.machine_name, e))
 
     # TODO Check result from every node, otherwise, cancel the recording
 
 def parallel_all_start_single(node):
     try:
-        serialized_data = urllib2.urlopen('http://%s:8080/all_start_single' % node.ip_address, data="", timeout=DEFAULT_NODE_HTTP_TIMEOUT).read()
+        requests.post('http://%s:8080/all_start_single' % node.ip_address, data="", timeout=DEFAULT_NODE_HTTP_TIMEOUT)
     except Exception as e:
-        client.captureException()
         g_logger.error('parallel_all_start_single %s: %s' % (node.machine_name, e))
 
     # TODO If we did not get a reply from all computers, continue, but mark this recording as bad
@@ -512,9 +495,8 @@ def parallel_all_finalize_single(p):
     node, summary = p
 
     try:
-        serialized_data = urllib2.urlopen('http://%s:8080/all_finalize_single' % node.ip_address, data="", timeout=20).read()
-
-        j = json.loads(serialized_data)
+        r = requests.post('http://%s:8080/all_finalize_single' % node.ip_address, data="", timeout=20)
+        j = r.json()
         if 'summary' in j:
             node_summary = {}
             node_summary['machine_name'] = node.machine_name
@@ -523,7 +505,6 @@ def parallel_all_finalize_single(p):
             summary.append(node_summary)
 
     except Exception as e:
-        client.captureException()
         g_logger.error('parallel_all_finalize_single %s: %s' % (node.machine_name, e))
 
 @api_view(['POST'])
@@ -672,7 +653,6 @@ def apply_set_roi(p):
     try:
         result = urllib2.urlopen('http://%s:8080/camera/%s/%s' % (node.ip_address, 'all', 'roi'), data=body, timeout=DEFAULT_NODE_HTTP_TIMEOUT).read()
     except Exception as e:
-        client.captureException()
         g_logger.error('post_set_roi %s: %s' % (node.machine_name, e))
 
 
@@ -700,7 +680,6 @@ def post_set_roi(request):
             try:
                 result = urllib2.urlopen('http://%s:8080/camera/%s/%s' % (camera.node.ip_address, camera.unique_id, 'roi'), data=request.body, timeout=DEFAULT_NODE_HTTP_TIMEOUT).read()
             except Exception as e:
-                client.captureException()
                 g_logger.error('post_set_roi %s: %s' % (camera.node.machine_name, e))
 
         elif location_id>0:                      
@@ -740,7 +719,6 @@ def post_reset_roi(request):
             try:
                 result = urllib2.urlopen('http://%s:8080/camera/%s/%s' % (camera.node.ip_address, camera.unique_id, 'roi'), data="", timeout=DEFAULT_NODE_HTTP_TIMEOUT).read()
             except Exception as e:
-                client.captureException()
                 g_logger.error('post_reset_roi %s: %s' % (camera.node.machine_name, e))
 
         elif location_id>0:                      
@@ -839,10 +817,9 @@ def camera_parameter(request, location_id="0"):
 
         # Update Node with new value
         try:
-            result = urllib2.urlopen('http://%s:8080/camera/%s/%s/%s' % (camera.node.ip_address, camera.unique_id, j['parameter_name'], j['value']), data="", timeout=DEFAULT_NODE_HTTP_TIMEOUT).read()
-            return JSONResponse(result)
+            r = requests.post('http://%s:8080/camera/%s/%s/%s' % (camera.node.ip_address, camera.unique_id, j['parameter_name'], j['value']), data="", timeout=DEFAULT_NODE_HTTP_TIMEOUT)
+            return JSONResponse(r.json())
         except Exception as e:
-            client.captureException()
             g_logger.error('camera_parameter %s: %s' % (camera.node.machine_name, e))                    
 
 def apply_options_on_node(p):
@@ -850,10 +827,9 @@ def apply_options_on_node(p):
     node, body, msgs = p
 
     try:
-        serialized_data = urllib2.urlopen('http://%s:8080/options/' % (node.ip_address), data=body, timeout=DEFAULT_NODE_HTTP_TIMEOUT).read()
+        requests.post('http://%s:8080/options/' % (node.ip_address), data=body, timeout=DEFAULT_NODE_HTTP_TIMEOUT)
         msgs.append('Options set on %s\n' % node.ip_address)
     except Exception as e:
-        client.captureException()
         msgs.append('Error setting option on %s\n' % node.ip_address)
         g_logger.error('location_config %s: %s' % (node.machine_name, e))                    
 
@@ -971,12 +947,10 @@ def fetch_camera_details_from_node(n):
 
     try:
         # Fetch additional data directly from capture node
-        serialized_data = urllib2.urlopen('http://%s:8080/cameras' % n['ip_address'], timeout=DEFAULT_NODE_HTTP_TIMEOUT).read()
-        #print serialized_data
-        n['camera_details'] = json.loads(serialized_data)
+        r = requests.post('http://%s:8080/cameras' % n['ip_address'], timeout=DEFAULT_NODE_HTTP_TIMEOUT)
+        n['camera_details'] = r.json()
 
     except Exception as e:
-        client.captureException()
         g_logger.error('fetch_camera_details_from_node %s: %s' % (n['ip_address'], e))
 
 @api_view(['GET'])
@@ -1013,7 +987,7 @@ def cameras_detailed(request, location_id="0"):
     # if loc.cur_session:
     #     current_tz = timezone.get_current_timezone()
     #     if not timezone.now().date() == loc.cur_session.start_time.date():
-    #         print 'Current Session is from a different date'
+    #         print('Current Session is from a different date')
     #         loc.cur_session = None
     #         loc.cur_shot = None
     #         loc.save()
@@ -1176,7 +1150,7 @@ def node_discover(request):
         import subprocess
         f = tempfile.NamedTemporaryFile(delete=False)
         try:
-            print 'Updating Dynamic DNS for all nodes'
+            print('Updating Dynamic DNS for all nodes')
             content = 'server ' + DDNS_SERVER + '\n'
             for item in CaptureNode.objects.filter(machine_name__contains='.ava.ea.com'):
                 content += ('update add ' + item.machine_name + ' 600 a ' + item.ip_address + '\n')

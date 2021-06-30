@@ -4,7 +4,7 @@
 
 from django.contrib import admin
 
-from models import CaptureLocation, CaptureNode, Camera, LocationAccess
+from capture.models import CaptureLocation, CaptureNode, Camera, LocationAccess
 
 class CaptureNodeAdmin(admin.ModelAdmin):
     list_display = ('machine_name', 'ip_address', 'os', 'location', 'build_version')

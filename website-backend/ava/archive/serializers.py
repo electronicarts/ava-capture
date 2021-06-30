@@ -3,7 +3,7 @@
 #
 
 
-from models import Project, Session, Shot, Take, Camera, StaticScanAsset, TrackingAsset
+from archive.models import Project, Session, Shot, Take, Camera, StaticScanAsset, TrackingAsset
 from rest_framework import serializers
 
 from ava.settings import BASE_DIR

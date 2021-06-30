@@ -12,14 +12,13 @@ https://docs.djangoproject.com/en/1.10/ref/settings/
 
 import os
 import datetime
-import raven
 import socket
 
 try:
-    import secure_settings
+    import ava.secure_settings as secure_settings
 except:
     # On development machines, the file secure_settings.py will not exist
-    import dev_secure_settings as secure_settings
+    import ava.dev_secure_settings as secure_settings
 
 ''' secure_settings.py is not in source control. It contains:
 
@@ -90,7 +89,6 @@ INSTALLED_APPS = [
     'taggit',
     'taggit_serializer',
     'django_prometheus',
-    'raven.contrib.django.raven_compat'
 ]
 
 MIDDLEWARE = [
@@ -191,11 +189,6 @@ LOGGING = {
         },
     },
     'handlers': {
-        'sentry': {
-            'level': 'WARNING',
-            'class': 'raven.contrib.django.raven_compat.handlers.SentryHandler',
-            'tags': {'custom-tag': 'prod'},
-        },
         'file': {
             'level': 'ERROR',
             'class': 'logging.FileHandler',
@@ -205,17 +198,12 @@ LOGGING = {
     },
     'loggers': {
         'dev': {
-            'handlers': ['file', 'sentry'],
+            'handlers': ['file'],
             'level': 'WARNING',
             'propagate': True,
         },
     },
 }
-
-# RAVEN_CONFIG = {
-#     'dsn': 'https://something@sentry.io/xxxxxx',
-#     'release': os.environ.get('AVA_GIT_VERSION') if 'AVA_GIT_VERSION' in os.environ else raven.fetch_git_sha(os.path.abspath(os.pardir)),
-# }
 
 # Internationalization
 # https://docs.djangoproject.com/en/1.10/topics/i18n/
@@ -267,11 +255,6 @@ if not secure_settings.PROD_SERVER: # DEV Server has a different way to serve st
             },
         },
         'handlers': {
-            'sentry': {
-                'level': 'WARNING',
-                'class': 'raven.contrib.django.raven_compat.handlers.SentryHandler',
-                'tags': {'custom-tag': 'dev'},
-            },            
             'file': {
                 'level': 'DEBUG',
                 'class': 'logging.FileHandler',
@@ -284,7 +267,7 @@ if not secure_settings.PROD_SERVER: # DEV Server has a different way to serve st
         },
         'loggers': {
             'dev': {
-                'handlers': ['file', 'sentry'],
+                'handlers': ['file'],
                 'level': 'DEBUG',
                 'propagate': True,
             }

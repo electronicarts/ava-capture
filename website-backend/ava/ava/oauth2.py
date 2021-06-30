@@ -5,8 +5,8 @@ from django.contrib.auth.models import User
 from django.contrib.auth import authenticate, login, logout
 from django.shortcuts import redirect
 
-from urlparse import parse_qsl # Python3: from urllib.parse import parse_qs
-import urllib2
+from urllib.parse import parse_qs
+import requests
 import json
 import jwt
 
@@ -74,8 +74,8 @@ def get_oauth2(request):
         'redirect_uri=' + AUTH_REDIRECT_URI,
         'grant_type=authorization_code'
     ])
-    result = urllib2.urlopen(AUTH_ENDPOINT, data=body, timeout=2).read()
-    result_dict = json.loads(result)
+    r = requests.post(AUTH_ENDPOINT, data=body, timeout=2)
+    result_dict = r.json()
 
     # 5. Obtain user information from the ID token
     access_token = result_dict.get('access_token')

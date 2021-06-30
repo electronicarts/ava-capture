@@ -7,9 +7,9 @@ import traceback
 import logging
 import datetime
 import os
-import urllib2
+import requests
 
-import aws
+import jobs.aws as aws
 
 from django.shortcuts import render
 from django.http import HttpResponse
@@ -19,7 +19,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import api_view, permission_classes
 from common.views import JSONResponse
-from models import FarmNode, FarmJob, FarmNodeGroup
+from jobs.models import FarmNode, FarmJob, FarmNodeGroup
 from django.utils import timezone
 from django.contrib.auth.models import User
 
@@ -27,25 +27,15 @@ from common.uuid_utils import uuid_node_base36
 
 from rest_framework import viewsets, filters, mixins
 from django_filters.rest_framework import DjangoFilterBackend
-from serializers import FarmNodeSerializer, FarmJobSerializer, FarmJobDetailedSerializer, FarmNodeGroupSerializer, FarmNodeSerializerDetails
+from jobs.serializers import FarmNodeSerializer, FarmJobSerializer, FarmJobDetailedSerializer, FarmNodeGroupSerializer, FarmNodeSerializerDetails
 
 from django.core.mail import send_mail
 
 from ava.settings import FRONTEND_URL, ADMIN_EMAIL, BASE_DIR, SLACK_NOTIF_HOOK, NOTIFICATION_EMAIL
 
-from prometheus_client import Gauge, Counter
-
-from raven.contrib.django.raven_compat.models import client
-
 from ansi2html import Ansi2HTMLConverter
 
 g_logger = logging.getLogger('dev')
-
-metrics_client_cpu = Gauge('job_client_cpu', 'CPU Usage of each node client', ['machine_name'])
-metrics_client_last_seen = Gauge('job_client_last_seen', 'When was this job client las seen', ['machine_name'])
-metrics_job_success_count = Counter('jobs_success', 'Number of successful jobs', ['machine_name'])
-metrics_job_failed_count = Counter('jobs_failed', 'Number of successful jobs', ['machine_name'])
-metrics_client_nb_running = Gauge('job_client_nb_running', 'Number of jobs running on job client', ['machine_name'])
 
 @api_view(['POST'])
 @permission_classes((IsAuthenticated,))
@@ -104,7 +94,6 @@ def job_mesh(request, job_id="0"):
         job.save()
 
     except Exception as e:
-        client.captureException()
         return JSONResponse({'message':'%s' % e}, status=500)
 
     return HttpResponse()
@@ -172,7 +161,6 @@ def job_image(request, job_id="0"):
         job.save()
 
     except Exception as e:
-        client.captureException()
         return JSONResponse({'message':'%s' % e}, status=500)
 
     return HttpResponse()
@@ -444,7 +432,7 @@ def sendEmailToOwner(job, request):
             html_message = html
         )
     except:
-        client.captureException()
+        print('could not send email')
 
 def slack_notification(message, color='good', extra_attributes={}):
     if SLACK_NOTIF_HOOK:
@@ -457,11 +445,10 @@ def slack_notification(message, color='good', extra_attributes={}):
             data_att.update(extra_attributes)
             data_str = json.dumps( {'attachments': [data_att]} )
 
-            req = urllib2.Request(url, data_str, {'Content-Type': 'application/json', 'Content-Length': len(data_str)})
-            result = urllib2.urlopen(req).read()
+            headers = {'Content-Type': 'application/json', 'Content-Length': len(data_str)}
+            requests.post(url, data=data_str, headers=headers)
 
         except Exception as e:
-            client.captureException()
             g_logger.error('Slack notification failed %s' % e)
 
 def job_notification(job, request):
@@ -565,8 +552,6 @@ def post_client_discover(request):
             node = FarmNode(ip_address=r['ip_address'], machine_name=r['machine_name'])
             update_aws_status = True
 
-        metrics_client_last_seen.labels(node.machine_name).set_to_current_time()
-
         if 'system' in r:
             node.system = r['system']
         if 'system_bits' in r:
@@ -581,7 +566,6 @@ def post_client_discover(request):
             node.req_restart = False
         if 'cpu_percent' in r:
             node.cpu_percent = r['cpu_percent']
-            metrics_client_cpu.labels(node.machine_name).set(node.cpu_percent)
         if 'mem_used' in r:
             node.virt_percent = r['mem_used']
         if 'os_version' in r:
@@ -666,13 +650,11 @@ def post_client_discover(request):
                         g_logger.info('Job #%s set to SUCCESS' % (job['job_id']))
                         this_job.status = 'success'
                         this_job.end_time = timezone.now()
-                        metrics_job_success_count.labels(node.machine_name).inc()
                     else:
                         g_logger.info('Job #%s set to FAILED' % (job['job_id']))
                         this_job.status = 'failed'
                         this_job.exception = job['exception']
                         this_job.end_time = timezone.now()
-                        metrics_job_failed_count.labels(node.machine_name).inc()
 
                     # Update parent job, if it exists
                     this_job.save()
@@ -766,7 +748,6 @@ def post_client_discover(request):
                                         break
 
                 except Exception as e:
-                    client.captureException()
                     g_logger.error('Scheduler failed %s' % e)
 
             # Send reserved jobs to node
@@ -784,8 +765,6 @@ def post_client_discover(request):
                 g_logger.info('Job #%s KILL to %s' % (job_id, node.machine_name))    
 
                 data['jobs_to_kill'].append(job_id)
-
-            metrics_client_nb_running.labels(node.machine_name).set(node.jobs.filter(status='running').count())
 
         return JSONResponse(data)
 

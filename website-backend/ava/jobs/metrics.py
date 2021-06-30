@@ -1,6 +1,6 @@
 
 from prometheus_client import Gauge
-from models import FarmJob
+from jobs.models import FarmJob
 
 def job_count_running(status):
     return FarmJob.objects.filter(status=status).count()

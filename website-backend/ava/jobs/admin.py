@@ -3,9 +3,9 @@
 #
 
 from django.contrib import admin
-from models import FarmNodeGroup, FarmNode, FarmJob
+from jobs.models import FarmNodeGroup, FarmNode, FarmJob
 
-import aws
+import jobs.aws as aws
 
 admin.site.register(FarmNodeGroup)
 

@@ -6,22 +6,22 @@ import json
 import os
 import logging
 
-import urllib2
+import requests
 import zipfile
-import StringIO
+from io import StringIO
 
 from ava.settings import BASE_DIR
 
 from django.shortcuts import render
 from django.http import HttpResponse
 
-from models import Project, Session, Take, Camera, StaticScanAsset, TrackingAsset
+from archive.models import Project, Session, Take, Camera, StaticScanAsset, TrackingAsset
 
 from common.views import JSONResponse
 from common.uuid_utils import uuid_node_base36
 
 from rest_framework import viewsets
-from serializers import *
+from archive.serializers import *
 
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
@@ -32,8 +32,6 @@ from jobs.models import FarmNode, FarmJob
 from jobs.views import make_sure_node_exists
 from accounts.models import UserData
 from capture.models import CaptureNode
-
-from raven.contrib.django.raven_compat.models import client
 
 DEFAULT_NODE_HTTP_TIMEOUT = 5
 
@@ -330,15 +328,14 @@ def download_original(request):
             url = 'http://%s:8080/download/' % (node[0].ip_address)           
             try:
 
-                result = urllib2.urlopen(url, data=json_data, timeout=DEFAULT_NODE_HTTP_TIMEOUT)
-                file_data = result.read()
+                result = requests.post(url, data=json_data, timeout=DEFAULT_NODE_HTTP_TIMEOUT)
+                file_data = result.text
 
                 basename = 'take_%d_%s_%04d.%s' % (take_id, cam_uid, frame_index, extension)
 
                 image_packer.add(basename, file_data, result.info().type)
 
             except Exception as e:
-                client.captureException()
                 g_logger.error('post_toggle_using_sync %s: %s' % (cam.machine_name, e))  
                 return JSONResponse({'message':'Could not download file from %s' % cam.machine_name}, status=500)                  
 
@@ -379,7 +376,6 @@ def post_import_session(request, project_id="0"):
         serializer.save()        
 
     except Exception as e:
-        client.captureException()
         return JSONResponse({'message':'Error: %s' % e}, status=500)
 
     return HttpResponse()
@@ -412,8 +408,7 @@ def post_tracking_asset_thumbnail(request, asset_id="0", frame="0"):
                     destination.write(chunk)                
 
         except Exception as e:
-            client.captureException()
-            print e
+            print(e)
 
     return HttpResponse()
 
@@ -452,8 +447,7 @@ def post_scan_asset_thumbnail(request, asset_id="0", asset_type="front"):
                 asset.save()
 
         except Exception as e:
-            client.captureException()
-            print e
+            print(e)
 
     return HttpResponse()
 
@@ -485,8 +479,7 @@ def post_tracking_video_thumbnail(request, asset_id="0"):
             tracking_asset.save()
 
         except Exception as e:
-            client.captureException()
-            print e
+            print(e)
 
     return HttpResponse()
 
@@ -518,8 +511,7 @@ def post_take_video_thumbnail(request, take_id="0"):
             take.save()
 
         except Exception as e:
-            client.captureException()
-            print e
+            print(e)
 
     return HttpResponse()
 

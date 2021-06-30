@@ -4,7 +4,7 @@
 
 from django.contrib import admin
 
-from models import Project, Session, Shot, Take, Camera, StaticScanAsset, TrackingAsset
+from archive.models import Project, Session, Shot, Take, Camera, StaticScanAsset, TrackingAsset
 
 def archive_project(modeladmin, request, queryset):
     queryset.update(archived=True)

@@ -3,7 +3,7 @@
 #
 
 from django.test import TestCase
-from models import FarmNode, FarmJob, FarmNodeGroup
+from jobs.models import FarmNode, FarmJob, FarmNodeGroup
 
 class FarmJobTestCase(TestCase):
     def setUp(self):

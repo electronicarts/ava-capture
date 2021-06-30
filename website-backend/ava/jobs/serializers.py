@@ -2,7 +2,7 @@
 # Copyright (c) 2018 Electronic Arts Inc. All Rights Reserved 
 #
 
-from models import FarmNode, FarmJob, FarmNodeGroup
+from jobs.models import FarmNode, FarmJob, FarmNodeGroup
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from django_gravatar.helpers import get_gravatar_url

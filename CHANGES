@@ -44,3 +44,12 @@ Ava Server Backend
    - Support AWS farm nodes
    - Support OAUTH2 Authentication
    - Misc improvements
+
+1.2.0
+
+Ava Server Backend
+
+   - Update Django to 2.2.24  
+   - Update Python to 3.6
+   - Remove some prometheus metrics
+   - Remove raven client
