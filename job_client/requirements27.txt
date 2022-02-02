@@ -2,7 +2,7 @@ certifi==2017.7.27.1
 chardet==3.0.4
 future==0.16.0
 idna==2.6
-numpy==1.13.1
+numpy==1.21.0
 opencv-python==4.2.0.32
 psutil==5.6.6
 py-cpuinfo==3.3.0
