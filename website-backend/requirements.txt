@@ -1,6 +1,6 @@
 ansi2html
 boto3
-Django==2.2.27
+Django==3.2.15
 django-gravatar2
 django-model-utils
 django-prometheus
@@ -13,7 +13,7 @@ djangorestframework-jwt
 python-ldap
 prometheus-client
 py-cpuinfo==0.2.3
-PyJWT==1.7.1
+PyJWT==2.4.0
 pytz==2016.6.1
 requests
 virtualenv==15.1.0
