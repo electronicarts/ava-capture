@@ -17,7 +17,7 @@ include(ExternalProject)
 file(GLOB SOURCES "source/*.cpp")
 
 #Include OpenCV
-find_package(OpenCV 3.2.0 REQUIRED)
+find_package(OpenCV 4.6.0 REQUIRED)
 include_directories(${OpenCV_INCLUDE_DIRS})
 
 find_package(OpenSSL REQUIRED)
@@ -29,7 +29,7 @@ include_directories(${PYTHON_INCLUDE_DIRS})
 set(Boost_USE_STATIC_LIBS OFF)
 set(Boost_USE_MULTITHREADED ON)
 set(Boost_USE_STATIC_RUNTIME OFF)
-find_package(Boost 1.58.0 REQUIRED COMPONENTS thread filesystem program_options)
+find_package(Boost 1.58.0 REQUIRED COMPONENTS thread filesystem program_options chrono)
 include_directories(${Boost_INCLUDE_DIRS})
 
 # Portaudio

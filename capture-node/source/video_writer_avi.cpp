@@ -13,6 +13,7 @@
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
+#include <libavformat/avio.h>
 #include <libavutil/imgutils.h>
 }
 
@@ -28,8 +29,7 @@ int ffio_set_buf_size(AVIOContext *s, int buf_size)
 
 	av_free(s->buffer);
 	s->buffer = buffer;
-	s->orig_buffer_size =
-		s->buffer_size = buf_size;
+	s->buffer_size = buf_size;
 	s->buf_ptr = buffer;
 
 	s->buf_end = s->buffer + s->buffer_size;
@@ -48,7 +48,6 @@ AviVideoWriter::AviVideoWriter(const char * filename, int framerate, int width, 
 	if (!s_global_init)
 	{
 		s_global_init = true;
-		av_register_all();
 	}
 
 	AVPixelFormat in_pix_fmt = m_bpp==8?AV_PIX_FMT_GRAY8:AV_PIX_FMT_GRAY16LE;
@@ -61,13 +60,12 @@ AviVideoWriter::AviVideoWriter(const char * filename, int framerate, int width, 
 	av_dict_set_int(&m_format_opts, "height_out", m_height, 0);
 	av_dict_set(&m_format_opts, "codec", "ffvhuff", 0);
 
-	AVCodec *codec = NULL;
 	int ret;
 		
 	ret = avformat_alloc_output_context2(&m_fmt_ctx, NULL, NULL, filename);
 
 	// Find Codec
-	codec = avcodec_find_encoder(codec_id);
+	const AVCodec* codec = avcodec_find_encoder(codec_id);
 	if (!codec) 
 	{
 		std::cerr << "Codec not found" << std::endl;
@@ -98,7 +96,7 @@ AviVideoWriter::AviVideoWriter(const char * filename, int framerate, int width, 
 	}
 
 	if (m_fmt_ctx->oformat->flags & AVFMT_GLOBALHEADER)
-		m_c->flags |= CODEC_FLAG_GLOBAL_HEADER;
+		m_c->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
 
 	if (avcodec_open2(m_c, codec, &m_format_opts) < 0) 
 	{
@@ -166,12 +164,13 @@ AviVideoWriter::AviVideoWriter(const char * filename, int framerate, int width, 
 
 					// Encode image data
 					AVPacket* packet = new AVPacket;
+					AVSubtitle *sub;
 					av_init_packet(packet);
 					packet->data = NULL;    // packet data will be allocated by the encoder
 					packet->size = 0;
 
 					// Encode Frame
-					ret = avcodec_encode_video2(m_c, packet, frame, &got_output);
+					ret = avcodec_encode_subtitle(m_c, packet->data, packet->size, sub);
 
 					//std::cout << "frame compressed to " << packet->size << "\n"; // DEBUG
 
@@ -267,12 +266,14 @@ void AviVideoWriter::close()
 	// Delayed Frames
 	for (int got_output = 1; got_output; m_frame_counter++) 
 	{
-		AVPacket pkt;
-		av_init_packet(&pkt);
-		pkt.data = NULL;    // packet data will be allocated by the encoder
-		pkt.size = 0;
+		// Encode image data
+		AVPacket* packet = new AVPacket;
+		AVSubtitle *sub;
+		av_init_packet(packet);
+		packet->data = NULL;    // packet data will be allocated by the encoder
+		packet->size = 0;
 
-		ret = avcodec_encode_video2(m_c, &pkt, NULL, &got_output);
+		ret = avcodec_encode_subtitle(m_c, packet->data, packet->size, sub);
 		if (ret < 0) 
 		{
 			std::cerr << "Error encoding frame" << std::endl;
@@ -280,10 +281,10 @@ void AviVideoWriter::close()
 		}
 		if (got_output) 
 		{
-			pkt.stream_index = m_av_stream->index;
-			av_interleaved_write_frame(m_fmt_ctx, &pkt);
+			packet->stream_index = m_av_stream->index;
+			av_interleaved_write_frame(m_fmt_ctx, packet);
 
-			av_packet_unref(&pkt);
+			av_packet_unref(packet);
 		}
 	}
 
