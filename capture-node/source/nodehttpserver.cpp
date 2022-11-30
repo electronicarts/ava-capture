@@ -462,6 +462,9 @@ std::string NodeHttpServer::handleRequest(std::shared_ptr<Session> session)
 		if (paths.size()>0 && paths[0] == "download")
 			return getDirectDownload(session);
 
+		if (paths.size() == 1 && paths[0] == "cameras")
+			return getCamerasPage(session);
+
 		if (paths.size() > 0 && paths[0] == "close_node")
 		{
 			m_node->shutdown();
