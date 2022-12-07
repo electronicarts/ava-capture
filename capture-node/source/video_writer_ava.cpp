@@ -143,6 +143,24 @@ AvaVideoWriter::~AvaVideoWriter()
 {
 	if (!m_closed)
 		close();
+
+	// Clear all allocated buffers
+	while (!m_frame_unused.empty())
+	{
+		FrameToEncode* ptr = 0;
+		m_frame_unused.try_pop(ptr);
+		if (ptr) {
+			delete ptr;
+		}
+	}
+	while (!m_paquet_unused.empty())
+	{
+		PacketToWrite* ptr = 0;
+		m_paquet_unused.try_pop(ptr);
+		if (ptr) {
+			delete ptr;
+		}
+	}
 }
 
 FrameToEncode* AvaVideoWriter::allocate_frame()
