@@ -449,6 +449,8 @@ void CaptureNode::prepare_single()
 		cam->set_record_as_raw(m_image_format_raw);
 	}
 
+	std::cout << "Recording Cameras Available " << m_recording_cameras.size() << " camera(s)" << std::endl;
+
 	// Begin recording
 	int i=0;
 	for (auto& cam : m_recording_cameras)
@@ -465,6 +467,8 @@ void CaptureNode::prepare_single()
 
 			std::vector<std::string> folders;
 			folders.push_back(all_folders[(i++)%all_folders.size()]);
+
+			std::cout << "--------- BEGIN PREPARE SINGLE FILE ---------" << std::endl;
 			
 			cam->start_recording(folders, true, m_burstCount); // Wait for trigger
 		}
@@ -501,13 +505,27 @@ void CaptureNode::finalize_single()
 
 	// Block until cameras have stopped recording
 	{
+		int status_count = 0;
 		for (auto& cam : m_recording_cameras)
 		{
+			cam->start_capture();
 			while (cam->recording()) {
-				boost::this_thread::sleep_for(boost::chrono::milliseconds(10));
+				// std::cout << "-------{} Camera recording" << std::endl;
+				boost::this_thread::sleep_for(boost::chrono::milliseconds(200));
+				if (status_count > 20)
+				{
+					cam->stop_capture();
+				}
+				else
+				{
+					status_count += 1;
+				}
+				std::cout << "-------{} Camera recording" << status_count << std::endl;
 			}
 		}
 	}
+
+	std::cout << "-------{} Camera not recording" << std::endl;
 	
 	for (auto& cam : m_recording_cameras)
 		cam->m_debug_timings = false;
@@ -530,12 +548,16 @@ void CaptureNode::finalize_single()
 		}
 	}
 
+	std::cout << "-------{} Finalize json structure" << std::endl;
+
 	// Finalize json structure
 	all_cameras_doc->AddMember("cameras", cameras, all_cameras_doc->GetAllocator());
 
-	m_recording_cameras.clear();
+	// m_recording_cameras.clear();
 
 	m_last_summary = all_cameras_doc;
+
+	stop_recording_all(get_take_recording_folders());
 }
 
 void CaptureNode::prepare_multi_stage1()
@@ -619,6 +641,50 @@ void CaptureNode::stop_recording_all()
 	for (auto& cam : m_recording_cameras)
 	{
 		cam->stop_recording();
+	}
+
+	for (auto& cam : m_recording_cameras)
+	{
+		shared_json_doc cam_summary = cam->last_summary();
+
+		if (cam_summary)
+		{ 
+			// Merge this camera's json data into the common document
+			rapidjson::Value cam_root(rapidjson::kObjectType);
+			cam_root.CopyFrom(*cam_summary.get(), all_cameras_doc->GetAllocator());
+			cameras.PushBack(cam_root, all_cameras_doc->GetAllocator());
+		}
+	}
+
+	for (auto& cam : m_recording_cameras)
+	{
+		cam->m_debug_in_capture_cycle = false;
+		cam->set_bitdepth(m_bitdepth_default);
+	}
+
+	for (auto& cam : m_recording_cameras)
+		cam->m_debug_timings = false;
+
+	// Finalize json structure
+	all_cameras_doc->AddMember("cameras", cameras, all_cameras_doc->GetAllocator());
+
+	m_recording_cameras.clear();
+
+	m_last_summary = all_cameras_doc;
+}
+
+void CaptureNode::stop_recording_all(std::vector<std::string> folders)
+{
+	std::cout << "STATUS> Stop Recording" << std::endl;
+
+	// Create new json document, to contain summary from all cameras
+	shared_json_doc all_cameras_doc(new rapidjson::Document());
+	all_cameras_doc->SetObject();
+	rapidjson::Value cameras(rapidjson::kArrayType);
+
+	for (auto& cam : m_recording_cameras)
+	{
+		cam->stop_recording(folders);
 	}
 
 	for (auto& cam : m_recording_cameras)

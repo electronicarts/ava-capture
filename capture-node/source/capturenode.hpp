@@ -59,6 +59,7 @@ public:
 	void record_image_sequence(int frame_count); // Execute all steps to capture a single image
 	void start_recording_all(); // Execute all steps to start recording
 	void stop_recording_all();
+	void stop_recording_all(std::vector<std::string> folders);
 
 	shared_json_doc get_last_summary() const { return m_last_summary;  }
 
