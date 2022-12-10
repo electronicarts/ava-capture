@@ -484,10 +484,13 @@ void Camera::stop_recording()
 	// Stop Recording and close file Frames
 	// Returns a dictionary with all recording data
 
+	std::cout << "--------- BEGIN STOP RECORDING ---------" << std::endl;
+
 	m_last_summary.reset();
 
-	if (recording())
+	if (!recording())
 	{
+		std::cout << "--------- INSIDE THE LOOP ---------" << std::endl;
 		m_closing_recorders = true;
 
 		// Close all recorders
@@ -532,6 +535,8 @@ void Camera::stop_recording()
 
 			if (!recording_first_frame.empty())
 			{
+				std::cout << "-------{} First frame was recorded" << std::endl;
+
 				cv::Mat tempImage = recording_first_frame;
 
 				if (m_color_need_debayer)
@@ -567,11 +572,30 @@ void Camera::stop_recording()
 			}
 			else if (!preview_image.empty())
 			{
-				std::vector<unsigned char> buf;
-				if (get_preview_image(buf))
-				{
-					d->AddMember("jpeg_thumbnail", rapidjson::Value(base64encode(buf).c_str(), d->GetAllocator()), d->GetAllocator());
-				}
+				std::cout << "-------{} Preview image was not empty" << std::endl;
+				// std::vector<unsigned char> buf;
+				// if (get_preview_image(buf))
+				// {
+				// 	d->AddMember("jpeg_thumbnail", rapidjson::Value(base64encode(buf).c_str(), d->GetAllocator()), d->GetAllocator());
+				// }
+
+				cv::Mat tempImage = preview_image;
+
+				std::vector<int> compression_params;
+				compression_params.push_back(cv::IMWRITE_PNG_COMPRESSION);
+				compression_params.push_back(0);
+
+				std::cout << "--------- WRITE PNG FILE ---------" << std::endl;
+
+				char fileName[120];
+				sprintf(fileName, "/home/ace/Code/ava-capture/capture-node/ts-ava-%ld.png", time(0));
+
+				cv::resize(tempImage, tempImage, cv::Size(m_preview_width*2, m_preview_height*2), 0.0, 0.0, cv::INTER_AREA);
+				cv::imwrite(fileName, tempImage, compression_params);
+			}
+			else
+			{
+				std::cout << "-------{} no frames found" << std::endl;
 			}
 
 			m_last_summary = d;
@@ -582,6 +606,142 @@ void Camera::stop_recording()
 			m_writing_buffers_used = 0;
 		}
 	}
+
+	std::cout << "--------- END STOP RECORDING ---------" << std::endl;
+}
+
+void Camera::stop_recording(std::vector<std::string> folders)
+{
+	// Stop Recording and close file Frames
+	// Returns a dictionary with all recording data
+
+	std::cout << "--------- BEGIN STOP RECORDING ---------" << std::endl;
+
+	m_last_summary.reset();
+
+	if (!recording())
+	{
+		std::cout << "--------- INSIDE THE LOOP ---------" << std::endl;
+		m_closing_recorders = true;
+
+		// Close all recorders
+		for (auto& r : m_recorders)
+			r->close();
+
+		// Prepare rapidjson tree to accumulate all data about this capture
+		shared_json_doc d(new rapidjson::Document());
+		d->SetObject();
+		d->AddMember("unique_id", rapidjson::Value(unique_id().c_str(), d->GetAllocator()), d->GetAllocator());
+
+		// Get summary data from all recorders
+		for (auto& r : m_recorders)
+			r->summarize(d);
+		m_recorders.clear();
+
+		// Fill summary tree with data about this capture
+		{
+			rapidjson::Value d_camera(rapidjson::kObjectType);
+			d_camera.AddMember("unique_id", rapidjson::Value(unique_id().c_str(), d->GetAllocator()), d->GetAllocator());
+			d_camera.AddMember("model", rapidjson::Value(model().c_str(), d->GetAllocator()), d->GetAllocator());
+			d_camera.AddMember("version", rapidjson::Value(version().c_str(), d->GetAllocator()), d->GetAllocator());
+			d_camera.AddMember("effective_fps", m_effective_fps, d->GetAllocator());
+			d_camera.AddMember("framerate", framerate(), d->GetAllocator());
+			d_camera.AddMember("width", width(), d->GetAllocator());
+			d_camera.AddMember("height", height(), d->GetAllocator());
+			d_camera.AddMember("using_hardware_sync", using_hardware_sync(), d->GetAllocator());
+			d_camera.AddMember("error_trigger_timeout", m_got_trigger_timeout, d->GetAllocator());
+
+			d->AddMember("camera", d_camera, d->GetAllocator());
+
+			// Add custom parameters
+			auto list = params_list();
+			rapidjson::Value d_params(rapidjson::kObjectType);
+			for (auto e : list)
+			{
+				rapidjson::Value strVal;
+				strVal.SetString(e.first.c_str(), d->GetAllocator());
+				d_params.AddMember(strVal, rapidjson::Value(param_get(e.first.c_str())), d->GetAllocator());
+			}			
+			d->AddMember("camera_params", d_params, d->GetAllocator());	
+
+			if (!recording_first_frame.empty())
+			{
+				std::cout << "-------{} First frame was recorded" << std::endl;
+
+				cv::Mat tempImage = recording_first_frame;
+
+				if (m_color_need_debayer)
+					cv::cvtColor(recording_first_frame, tempImage, m_bayerpattern);
+
+				cv::resize(tempImage, tempImage, cv::Size(m_preview_width*2, m_preview_height*2), 0.0, 0.0, cv::INTER_AREA);
+
+				if (m_color_need_debayer)
+					color_correction::apply(tempImage, m_color_balance, recording_first_frame_black_level);
+
+				if (m_bitcount > 8) // If the image is more than 8 bit, shift values to convert preview to 8 bit range, for JPG encoding	
+					tempImage.convertTo(tempImage, CV_8U, 1.0f / (1 << (m_bitcount - 8)));
+
+				color_correction::linear_to_sRGB(tempImage);
+
+				d->AddMember("thumbnail_index", recording_first_frame_index, d->GetAllocator());
+
+				std::vector<unsigned char> buf;
+				if (cv::imencode(".jpg", tempImage, buf))
+				{
+					d->AddMember("jpeg_thumbnail", rapidjson::Value(base64encode(buf).c_str(), d->GetAllocator()), d->GetAllocator());
+				}
+
+				cv::Mat tempImageOverexposed;
+				int overexposedPixels = overexposedDisplay(tempImage, tempImageOverexposed);
+				if (overexposedPixels > 0)
+				{
+					if (cv::imencode(".jpg", tempImageOverexposed, buf))
+					{
+						d->AddMember("jpeg_thumbnail_overexposed", rapidjson::Value(base64encode(buf).c_str(), d->GetAllocator()), d->GetAllocator());
+					}
+				}
+			}
+			else if (!preview_image.empty())
+			{
+				std::cout << "-------{} Preview image was not empty" << std::endl;
+
+				cv::Mat tempImage = preview_image;
+
+				std::vector<int> compression_params;
+				compression_params.push_back(cv::IMWRITE_PNG_COMPRESSION);
+				compression_params.push_back(0);
+
+				std::cout << "--------- WRITE PNG FILE ---------" << std::endl;
+
+				for (auto it = folders.begin(); it != folders.end(); ++it){
+					std::cout << *it << std::endl;
+				}
+
+				char fileName[120];
+				sprintf(fileName, "%s/1-%ld.jpg", folders.front().c_str(), time(0));
+
+				std::cout << fileName << std::endl;
+
+				cv::resize(tempImage, tempImage, cv::Size(m_preview_width*2, m_preview_height*2), 0.0, 0.0, cv::INTER_AREA);
+				cv::imwrite(fileName, tempImage, compression_params);
+
+				d->AddMember("jpeg_thumbnail", rapidjson::Value(fileName, d->GetAllocator()), d->GetAllocator());
+			}
+			else
+			{
+				std::cout << "-------{} no frames found" << std::endl;
+			}
+
+			m_last_summary = d;
+			m_recording = false;
+			m_waiting_for_trigger = false;
+			m_waiting_for_trigger_hold = false;
+			m_encoding_buffers_used = 0;
+			m_writing_buffers_used = 0;
+		}
+	}
+
+	std::cout << "--------- END STOP RECORDING ---------" << std::endl;
 }
 
 void Camera::updateColorBalance(double r, double g, double b)
@@ -600,6 +760,12 @@ bool Camera::get_preview_image(std::vector<unsigned char>& buf, bool* pIsHistogr
 
 	if (pIsHistogram)
 		*pIsHistogram = preview_image_is_histogram;
+	
+	std::vector<int> compression_params;
+	compression_params.push_back(cv::IMWRITE_PNG_COMPRESSION);
+	compression_params.push_back(0);
+	
+	cv::imwrite("example.jpg", preview_image, compression_params);
 
 	return cv::imencode(".jpg", preview_image, buf); // cv2.IMWRITE_JPEG_QUALITY, 90
 }

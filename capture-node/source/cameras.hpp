@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include <iostream>
 #include <string>
 #include <map>
 #include <deque>
@@ -120,9 +121,11 @@ public:
 
 	virtual void stop_capture()
 	{
+		std::cout << "STATUS> Stop capture" << std::endl;
 		// Stop Capturing Frames
 		m_effective_fps = 0;
 		m_capturing = false;
+		m_recording = false;
 	}
 
 	virtual bool is_valid() const { return true; } // If a camera becomes invalid it will be removed
@@ -130,6 +133,7 @@ public:
 
 	virtual void start_recording(const std::vector<std::string>& folders, bool wait_for_trigger, int nb_frames=-1);
 	virtual void stop_recording();
+	virtual void stop_recording(std::vector<std::string> folders);
 
 	virtual bool set_bitdepth(int bitdepth) { return false; }
 
