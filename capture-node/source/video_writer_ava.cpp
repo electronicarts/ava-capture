@@ -1,103 +1,151 @@
 // Copyright (C) 2017 Electronic Arts Inc.  All rights reserved.
 
-#include "video_writer_ava.hpp"
+#include "video_writer_avi.hpp"
 #include "recorder.hpp"
 
-#include <opencv2/highgui.hpp>
-#include <opencv2/opencv.hpp>
-
 #include <iostream>
-#include <lz4.h>
 #include <chrono>
+
+#include <opencv2/highgui.hpp>
+
 #include <tbb/pipeline.h>
 
-struct FrameToEncode
+extern "C" {
+#include <libavcodec/avcodec.h>
+#include <libavformat/avformat.h>
+#include <libavformat/avio.h>
+#include <libavutil/imgutils.h>
+}
+
+bool AviVideoWriter::s_global_init = false;
+int AviVideoWriter::s_frame_row_alignment = 32;
+
+int ffio_set_buf_size(AVIOContext *s, int buf_size)
 {
-	FrameToEncode() : index(0) {} 
+	uint8_t *buffer;
+	buffer = (uint8_t*)av_malloc(buf_size);
+	if (!buffer)
+		return AVERROR(ENOMEM);
 
-	std::vector<unsigned char> img_buf;
-	unsigned int index;
-    double ts;
-};
+	av_free(s->buffer);
+	s->buffer = buffer;
+	s->buffer_size = buf_size;
+	s->buf_ptr = buffer;
 
-struct PacketToWrite
-{
-	std::vector<unsigned char> buf;
-	double ts;
-};
+	s->buf_end = s->buffer + s->buffer_size;
+	s->write_flag = 1;
+	
+	return 0;
+}
 
-AvaVideoWriter::AvaVideoWriter(const char * filename, 
-	int framerate, int width, int height, int bpp,
-	bool color_bayer, int bayer_pattern, color_correction::rgb_color_balance bal) 
-: m_framerate(framerate), m_width(width), m_height(height), m_closed(false), m_frame_counter(0), m_bpp(bpp)
+AviVideoWriter::AviVideoWriter(const char * filename, int framerate, int width, int height, int bpp)
+	: m_framerate(framerate), m_width(width), m_height(height), m_closed(false), m_frame_counter(0),
+		m_av_stream(0), m_fmt_ctx(0), m_c(0), m_format_opts(0), m_bpp(bpp)
 {
 	m_frame_queue.set_capacity(300); // TODO
-	m_packets_in_flight = 0;
-	m_frame_unused.set_capacity(300);
-	m_paquet_unused.set_capacity(300);
+	m_paquet_queue.set_capacity(300);
 
-    // File I/O: Open file
-    m_f = std::fstream(filename, std::ios::out | std::ios::binary);
-
-	// Write File Header
-	struct ava_raw_info {
-		unsigned char magic; // 0xED
-		unsigned char version; // 1
-		unsigned char channels; // 1 or 3
-		unsigned char bitcount; // 8..16
-		unsigned int width;
-		unsigned int height;
-		unsigned int blacklevel;
-		unsigned char bayer0; // first row, first pixel
-		unsigned char bayer1; // first row, second pixel
-		unsigned char bayer2; // second row, first pixel
-		unsigned char bayer3; // second row, second pixel
-		float kR;
-		float kG;
-		float kB;
-
-		char compression[4];
-		unsigned long long index_start_offset; // offset un bytes from the start of the file where the index will start
-	};
-
-	ava_raw_info info;
-	memset(&info, 0, sizeof(info));
-	info.magic = 0xED;
-	info.version = 1;
-	info.channels = 1; // would be 3 only for RGB data
-	info.bitcount = m_bpp;
-	info.width = m_width;
-	info.height = m_height;
-	info.blacklevel = 0; // TODO
-	if (color_bayer)
+	if (!s_global_init)
 	{
-		switch (bayer_pattern) {
-			case cv::COLOR_BayerRG2RGB: info.bayer0 = 'B'; info.bayer1 = 'G'; info.bayer2 = 'G'; info.bayer3 = 'R'; break;
-			case cv::COLOR_BayerBG2RGB: info.bayer0 = 'R'; info.bayer1 = 'G'; info.bayer2 = 'G'; info.bayer3 = 'B'; break;
-			case cv::COLOR_BayerGR2RGB: info.bayer0 = 'G'; info.bayer1 = 'B'; info.bayer2 = 'R'; info.bayer3 = 'G'; break;
-			case cv::COLOR_BayerGB2RGB: info.bayer0 = 'G'; info.bayer1 = 'R'; info.bayer2 = 'B'; info.bayer3 = 'G'; break;
-			default: info.bayer0 = ' '; info.bayer1 = ' '; info.bayer2 = ' '; info.bayer3 = ' '; break;
-		}
-		info.kR = bal.kR;
-		info.kG = bal.kG;
-		info.kB = bal.kB;
+		s_global_init = true;
 	}
-	info.compression[0] = 'L';
-	info.compression[1] = 'Z';
-	info.compression[2] = '4';
 
-	m_f.write((const char *)&info, sizeof(ava_raw_info));
+	AVPixelFormat in_pix_fmt = m_bpp==8?AV_PIX_FMT_GRAY8:AV_PIX_FMT_GRAY16LE;
+	AVCodecID codec_id = AV_CODEC_ID_FFVHUFF; // AV_CODEC_ID_HUFFYUV AV_CODEC_ID_FFV1 AV_CODEC_ID_FFVHUFF
 
-	m_offset_for_index_start = offsetof(struct ava_raw_info, index_start_offset);
-	m_offset_for_packets = m_f.tellg();
+	av_dict_set(&m_format_opts, "pix_fmt_in", m_bpp==8?"gray":"gray16le", 0);
+	av_dict_set_int(&m_format_opts, "width_in", m_width, 0);
+	av_dict_set_int(&m_format_opts, "height_in", m_height, 0);
+	av_dict_set_int(&m_format_opts, "width_out", m_width, 0);
+	av_dict_set_int(&m_format_opts, "height_out", m_height, 0);
+	av_dict_set(&m_format_opts, "codec", "ffvhuff", 0);
+
+	int ret;
+		
+	ret = avformat_alloc_output_context2(&m_fmt_ctx, NULL, NULL, filename);
+
+	// Find Codec
+	const AVCodec* codec = avcodec_find_encoder(codec_id);
+	if (!codec) 
+	{
+		std::cerr << "Codec not found" << std::endl;
+		return;
+	}
+
+	m_av_stream = avformat_new_stream(m_fmt_ctx, codec);
+
+	m_c = avcodec_alloc_context3(codec);
+	if (!m_c) 
+	{
+		std::cerr << "Could not allocate video codec context" << std::endl;
+		return;
+	}
+
+	m_c->bit_rate = 400000;
+	m_c->width = m_width;
+	m_c->height = m_height;
+	m_c->time_base = m_av_stream->time_base = av_make_q(1, m_framerate);
+	m_c->gop_size = 12; // emit one intra frame every twelve frames at most
+	m_c->max_b_frames = 1;
+	m_c->pix_fmt = in_pix_fmt;
+
+	if (m_width % s_frame_row_alignment != 0)
+	{
+		std::cerr << "Fatal Error: Image width must be a multiple of " << s_frame_row_alignment << std::endl;
+		return;
+	}
+
+	if (m_fmt_ctx->oformat->flags & AVFMT_GLOBALHEADER)
+		m_c->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
+
+	if (avcodec_open2(m_c, codec, &m_format_opts) < 0) 
+	{
+		std::cerr << "Could not open codec" << std::endl;
+		return;
+	}
+
+#if LIBAVCODEC_VERSION_MAJOR>=57 && LIBAVCODEC_VERSION_MINOR>=14	
+	// copy the stream parameters to the muxer
+	ret = avcodec_parameters_from_context(m_av_stream->codecpar, m_c);
+	if (ret < 0) 
+	{
+		std::cerr << "Could not copy the stream parameters" << std::endl;
+		return;
+	}
+#else
+	// copy the stream parameters to the muxer
+	ret = avcodec_copy_context(m_av_stream->codec, m_c);
+	if (ret < 0) 
+	{
+		std::cerr << "Could not copy the stream parameters" << std::endl;
+		return;
+	}
+#endif
+
+	// open the output file, if needed
+	if (!(m_fmt_ctx->oformat->flags & AVFMT_NOFILE)) 
+	{
+		ret = avio_open2(&m_fmt_ctx->pb, filename, AVIO_FLAG_WRITE, 0, 0);
+		if (ret < 0) 
+		{
+			std::cerr << "Could not open file " << filename << std::endl;
+			return;
+		}
+
+		// TODO implement my own IO
+
+		ffio_set_buf_size(m_fmt_ctx->pb, 64 * 1024 * 1024); // TODO
+	}
+
+	avformat_write_header(m_fmt_ctx, &m_format_opts);
 
 	// Run TBB Pipeline in a thread
 	pipeline_thread = boost::thread([this]() {
 
 		// Prepare TBB Pipeline to encode and write frames
-		tbb::filter_t<void,FrameToEncode*> f1(tbb::filter::serial_in_order, [this](tbb::flow_control& fc) -> FrameToEncode* {
+		tbb::filter_t<void,AVFrame*> f1(tbb::filter::serial_in_order, [this](tbb::flow_control& fc) -> AVFrame* {
 				// Consume m_frame_queue
-				FrameToEncode* frame = 0;
+				AVFrame* frame = 0;
 				m_frame_queue.pop(frame);
 				if (!frame)
 				{
@@ -107,31 +155,57 @@ AvaVideoWriter::AvaVideoWriter(const char * filename,
 
 				return frame;
 			});
-		tbb::filter_t<FrameToEncode*,PacketToWrite*> f2(tbb::filter::parallel, [this](FrameToEncode * frame){
+		tbb::filter_t<AVFrame*,AVPacket*> f2(tbb::filter::serial_in_order, [this](AVFrame * frame){
 
 				// Encode one frame
-				PacketToWrite* packet = allocate_packet();
+				{
+					int ret = 0;
+					int got_output = 0;
 
-				packet->ts = frame->ts;
-				packet->buf.resize(frame->img_buf.size()*2);
-				int len = LZ4_compress_default((const char *)&frame->img_buf[0], (char *)&packet->buf[0], 
-					frame->img_buf.size(), packet->buf.size());
-				packet->buf.resize(len);
+					// Encode image data
+					AVPacket* packet = new AVPacket;
+					AVSubtitle *sub;
+					av_init_packet(packet);
+					packet->data = NULL;    // packet data will be allocated by the encoder
+					packet->size = 0;
 
-				deallocate_frame(&frame);
+					// Encode Frame
+					ret = avcodec_encode_subtitle(m_c, packet->data, packet->size, sub);
 
-				return packet;			
+					//std::cout << "frame compressed to " << packet->size << "\n"; // DEBUG
+
+					// Deallocate frame memory (TODO: return to available queue)
+					deallocate_frame(&frame);
+
+					{
+						// Write encoded frame to queue
+						if (got_output)
+						{
+							if (!m_paquet_queue.try_push(packet))
+							{
+								std::cerr << "Writer> Dropped Frame!" << std::endl;
+								delete packet;
+								return (AVPacket*)nullptr;
+							}
+						}
+						else
+						{
+							return (AVPacket*)nullptr;
+						}
+					}
+
+					return packet;			
+				}
 			});
-		tbb::filter_t<PacketToWrite*,void> f3(tbb::filter::serial_in_order, [this](PacketToWrite * packet){
-			
+		tbb::filter_t<AVPacket*,void> f3(tbb::filter::serial_in_order, [this](AVPacket * packet){
 				// Write one packet to disk
-				// File I/O: Write packet to disk
-				m_f.write((const char *)&packet->buf[0], packet->buf.size());
+				{
+					packet->stream_index = m_av_stream->index;
+					av_interleaved_write_frame(m_fmt_ctx, packet);
 
-				// Store timestamp with index, check if frames are missing, to build index
-				m_written_packets.push_back(std::pair<double, unsigned int>(packet->ts, packet->buf.size()));
-
-				deallocate_packet(&packet);
+					av_packet_unref(packet);
+					delete packet;
+				}
 			});
 
      	tbb::filter_t<void,void> f = f1 & f2 & f3;
@@ -139,56 +213,33 @@ AvaVideoWriter::AvaVideoWriter(const char * filename,
 	});
 }
 
-AvaVideoWriter::~AvaVideoWriter() 
+AviVideoWriter::~AviVideoWriter()
 {
 	if (!m_closed)
 		close();
 }
 
-FrameToEncode* AvaVideoWriter::allocate_frame()
+int AviVideoWriter::buffers_used(int type) const
 {
-	FrameToEncode* ptr = 0;
-	m_frame_unused.try_pop(ptr);
-	if (ptr) return ptr;
-	return new FrameToEncode;
+	// Return a pair of values, representing Encoding and Writing buffers
+
+	switch (type) {
+	case BUFFER_ENCODING:
+		return m_frame_queue.size() * 100 / m_frame_queue.capacity();
+	case BUFFER_WRITING:
+		return m_paquet_queue.size() * 100 / m_paquet_queue.capacity();
+	}
+
+	return 0;
 }
 
-void AvaVideoWriter::deallocate_frame(FrameToEncode** frame)
-{
-	m_frame_unused.push(*frame);
-    *frame = 0;
-}
-
-PacketToWrite* AvaVideoWriter::allocate_packet()
-{
-	m_packets_in_flight++;
-
-	PacketToWrite* ptr = 0;
-	m_paquet_unused.try_pop(ptr);
-	if (ptr) return ptr;
-	return new PacketToWrite;
-}
-
-void AvaVideoWriter::deallocate_packet(PacketToWrite** packet)
-{
-	m_paquet_unused.push(*packet);
-    *packet = 0;
-
-	m_packets_in_flight--;
-}
-
-bool AvaVideoWriter::addFrame(const cv::Mat& img, double ts)
+bool AviVideoWriter::addFrame(const cv::Mat& img, double ts)
 {
 	const int byteperpixel = m_bpp == 8 ? 1 : 2;
 
-	FrameToEncode* frame = allocate_frame();
-
-	// Copy image data to FrameToEncode
-	frame->img_buf.resize(img.total() * img.elemSize());
-	memcpy(&frame->img_buf[0], img.data, frame->img_buf.size());
-    frame->ts = ts;
-	frame->index = m_frame_counter;
-
+	AVFrame* frame = allocate_frame(); // TODO We should not allocate each frame, there whould be a queue of available frame struct to use.
+	memcpy(frame->data[0], img.data, m_width*m_height*byteperpixel);
+	frame->pts = m_frame_counter;
 	if (!m_frame_queue.try_push(frame))
 	{
 		std::cerr << "Encoder> Dropped Frame!" << std::endl;
@@ -202,53 +253,85 @@ bool AvaVideoWriter::addFrame(const cv::Mat& img, double ts)
 	return true;
 }
 
-void AvaVideoWriter::close()
+void AviVideoWriter::close()
 {
+	int ret;
+
 	m_frame_queue.push(0); // Blocking push of terminator
+	m_paquet_queue.push(0); // Blocking push of terminator
 	pipeline_thread.join();
 
 	m_closed = true;
 
-	unsigned long long zero = 0;
-	unsigned long long index_offset = m_f.tellg();
-	unsigned long long cur_packet_offset = m_offset_for_packets;
-
-	// Write index
-
-	for (int i=0;i<m_written_packets.size();i++)
+	// Delayed Frames
+	for (int got_output = 1; got_output; m_frame_counter++) 
 	{
-		double offset = (i>0) ? (m_written_packets[i].first - m_written_packets[i-1].first) : 0.0;
-		double ts_offset_ratio = offset * m_framerate;
+		// Encode image data
+		AVPacket* packet = new AVPacket;
+		AVSubtitle *sub;
+		av_init_packet(packet);
+		packet->data = NULL;    // packet data will be allocated by the encoder
+		packet->size = 0;
 
-		// Write offset for this frame
-		m_f.write((const char *)&cur_packet_offset, sizeof(unsigned long long)); 
+		ret = avcodec_encode_subtitle(m_c, packet->data, packet->size, sub);
+		if (ret < 0) 
+		{
+			std::cerr << "Error encoding frame" << std::endl;
+			return;
+		}
+		if (got_output) 
+		{
+			packet->stream_index = m_av_stream->index;
+			av_interleaved_write_frame(m_fmt_ctx, packet);
 
-		// Write offset=0 for missing frames (frames that were not recorded according to timestamps)
-		int nb_extra_frames = int(ts_offset_ratio-0.5);
-		for (int j=0;j<nb_extra_frames;j++)
-			m_f.write((const char *)&zero, sizeof(unsigned long long));
-
-		cur_packet_offset += m_written_packets[i].second;
+			av_packet_unref(packet);
+		}
 	}
 
-	// Write offset for start of index
-	m_f.seekg(m_offset_for_index_start);
-	m_f.write((const char *)&index_offset, sizeof(unsigned long long));
+	av_write_trailer(m_fmt_ctx);
 
-    // File I/O: Close file
-    m_f.close();
+	avcodec_close(m_c);
+	av_free(m_c);
+
+
+	// Close the output file
+	if (!(m_fmt_ctx->oformat->flags & AVFMT_NOFILE))
+		avio_closep(&m_fmt_ctx->pb);
+
+	if (m_fmt_ctx)
+		avformat_free_context(m_fmt_ctx);
+	av_dict_free(&m_format_opts);
 }
 
-int AvaVideoWriter::buffers_used(int type) const
+AVFrame* AviVideoWriter::allocate_frame()
 {
-	// Return a pair of values, representing Encoding and Writing buffers
+	AVFrame* frame = 0;
 
-	switch (type) {
-	case BUFFER_ENCODING:
-		return m_frame_queue.size() * 100 / m_frame_queue.capacity();
-	case BUFFER_WRITING:
-		return m_packets_in_flight * 100 / 32;
+	frame = av_frame_alloc();
+	if (!frame)
+	{
+		std::cerr << "Could not allocate video frame" << std::endl;
+		return 0;
+	}
+	frame->format = m_c->pix_fmt;
+	frame->width = m_c->width;
+	frame->height = m_c->height;
+
+	int ret = av_image_alloc(frame->data, frame->linesize, m_c->width, m_c->height, m_c->pix_fmt, s_frame_row_alignment);
+	if (ret < 0)
+	{
+		std::cerr << "Could not allocate raw picture buffer" << std::endl;
+		return 0;
 	}
 
-	return 0;
+	return frame;
+}
+
+void AviVideoWriter::deallocate_frame(AVFrame** frame)
+{
+	if (*frame)
+	{
+		av_freep(&(*frame)->data[0]);
+		av_frame_free(frame);
+	}
 }
