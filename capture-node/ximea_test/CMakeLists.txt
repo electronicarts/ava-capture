@@ -1,0 +1,6 @@
+cmake_minimum_required(VERSION 2.8)
+project( ximeaTest )
+find_package( OpenCV REQUIRED )
+include_directories( "m3api/xiApi.h" ${OpenCV_INCLUDE_DIRS} )
+add_executable( ximeaTest ximeaTest.cpp )
+target_link_libraries( ximeaTest ${OpenCV_LIBS} "m3api" )

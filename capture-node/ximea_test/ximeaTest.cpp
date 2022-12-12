@@ -10,6 +10,10 @@
 #include <memory.h>
 
 #include <string>
+#include <vector>
+
+#include <opencv2/opencv.hpp>
+using namespace cv;
 
 #define HandleResult(res,place) if (res!=XI_OK) {printf("Error after %s (%d)\n",place,res); exit(1);}
 
@@ -57,7 +61,7 @@ int captureSomeFrames(HANDLE xiH)
 
 	double last_ts = 0.0;
 
-#define EXPECTED_IMAGES 20
+#define EXPECTED_IMAGES 1
 	for (int images = 0; images < EXPECTED_IMAGES; images++)
 	{
 		XI_IMG image;
@@ -67,6 +71,17 @@ int captureSomeFrames(HANDLE xiH)
 		// getting image from camera
 		stat = xiGetImage(xiH, 5000, &image);
 		HandleResult(stat, "xiGetImage");
+
+		const char *fileName = "example.png";
+		int width = 1024;
+		int height = 1024;
+		int byte_per_pixel = 1;
+		int max_pixel_value = 255;
+		Mat img_raw = Mat(height, width, CV_8UC1, image.bp, cv::Mat::AUTO_STEP);
+		std::vector<int> compression_params;
+		compression_params.push_back(IMWRITE_PNG_COMPRESSION);
+		compression_params.push_back(0);
+		imwrite(fileName, img_raw, compression_params);
 
 		double ts = image.tsSec + image.tsUSec / 1000000.0;
 		unsigned char pixel = *(unsigned char*)image.bp;
@@ -148,7 +163,7 @@ int _tmain(int argc, char* argv[])
 	#define EXPECTED_C2_VERSION "02.04"
 	#define EXPECTED_XML_VERSION "02.04.01"
 #else
-	#define EXPECTED_API_VERSION "V4.15.04.00"
+	#define EXPECTED_API_VERSION "V4.27.03.00"
 	#define EXPECTED_DRV_VERSION "0"
 	#define EXPECTED_F1_VERSION "01.18"
 	#define EXPECTED_C1_VERSION "04.22"
