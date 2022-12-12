@@ -39,6 +39,32 @@ It is also possible to use this script to run avaCapture and allow it to update 
 
     ./run_node_loop.sh &
 
+### Ubuntu 22.10  
+
+Removing `cmake_check_build_system` from the `all` Makefile directive.
+
+Next install the Ximea SDK from http://www.ximea.com.
+
+To compile, first git clone this project. Make sure these packages are installed:
+
+    sudo apt-get install cmake git
+    sudo apt-get install libboost-all-dev rapidjson-dev libavcodec-dev libavformat-dev libswscale-dev python2.7-dev
+
+Then follow these steps to compile:
+
+    cd capture-node
+    cmake .
+    cd thirdparty/lz4/tmp/
+    sed -i 's/master/dev/g' *
+    grep -rnw '.' -e 'master'
+    make
+
+And finally run the node with this command. The server address corresponds to the machine running the Ava Website Backend.
+
+    ./avaCapture --folder capture_store --server 127.0.0.1 --port 8000
+
+
+
 ## Ava Website Frontend
 
 The website is a single-page Angular application. It is compiled into a few static files that are served by the webserver (or the Django backend for development). The source code is compiled using Node.js.
@@ -85,6 +111,14 @@ This will generate files in /dist-prod. These files should be copied to the prod
 
 The Backend can run on any web server (eg. nginx). For development purposes, it can also run directly from the Django server in Windows or other supported OS. It is possible to create a Python environment, install the libraries from requirements.txt and then run the django server with:
 
+    conda create --name avapy310 python=3.10
+    conda activate avapy310
+    pip install -r requirements.txt
+    mkdir dev-database
+    mkdir dev-thumb
+    python create_db.py
+    mv sqlite3.db dev-database/
+    pip install pytz
     python manage.py migrate
     python manage.py initialsetup
     python manage.py runserver 0.0.0.0:80
