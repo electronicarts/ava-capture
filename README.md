@@ -61,6 +61,7 @@ Then follow these steps to compile:
 
 And finally run the node with this command. The server address corresponds to the machine running the Ava Website Backend.
 
+    sudo tee /sys/module/usbcore/parameters/usbfs_memory_mb >/dev/null <<<0
     ./avaCapture --folder capture_store --server 127.0.0.1 --port 8000
 
 
