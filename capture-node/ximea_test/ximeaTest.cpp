@@ -72,7 +72,9 @@ int captureSomeFrames(HANDLE xiH)
 		stat = xiGetImage(xiH, 5000, &image);
 		HandleResult(stat, "xiGetImage");
 
-		const char *fileName = "example.png";
+		//const char *fileName = "example.png";
+		char fileName[120];
+		sprintf(fileName, "ximeaTest-%ld.png", time(0));
 		int width = 1024;
 		int height = 1024;
 		int byte_per_pixel = 1;
@@ -213,8 +215,9 @@ int _tmain(int argc, char* argv[])
 	set_param_int(xiH, XI_PRM_GPI_MODE, XI_GPI_TRIGGER);
 	set_param_int(xiH, XI_PRM_TRG_SOURCE, XI_TRG_EDGE_RISING);
 	set_param_int(xiH, XI_PRM_BPC, XI_ON);
-	//set_param_int(xiH, XI_PRM_IMAGE_BLACK_LEVEL, 0);
-	set_param_int(xiH, XI_PRM_IMAGE_DATA_FORMAT, XI_RAW8);
+	set_param_int(xiH, XI_PRM_IMAGE_BLACK_LEVEL, 0);
+	//set_param_int(xiH, XI_PRM_IMAGE_DATA_FORMAT, XI_RAW8);
+	set_param_int(xiH, XI_PRM_IMAGE_DATA_FORMAT, XI_RGB24);
 
 	int m_max_bandwidth = get_param_int(xiH, XI_PRM_AVAILABLE_BANDWIDTH);
 	printf("Max Bandwdth: %d Mbit/s\n", m_max_bandwidth);
