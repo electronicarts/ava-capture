@@ -1,6 +1,6 @@
 ansi2html
 boto3
-Django==2.2.27
+Django==3.2.19
 django-gravatar2
 django-model-utils
 django-prometheus
