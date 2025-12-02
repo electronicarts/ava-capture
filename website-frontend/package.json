@@ -14,7 +14,7 @@
   "keywords": [],
   "author": "Etienne Danvoye",
   "dependencies": {
-    "@angular/common": "~6.1.10",
+    "@angular/common": "~19.2.16",
     "@angular/compiler": "~6.1.10",
     "@angular/core": "~6.1.10",
     "@angular/forms": "~6.1.10",
